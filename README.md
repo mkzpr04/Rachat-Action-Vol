@@ -89,7 +89,8 @@ sinon : on fait rien
 
  MODIF à faire pour le dimanche 4 AOUT 24:
 
- Claire séparation de l'environnement, l'agent, et la simulation (refaire les fonctions pour les généraliser)
+ Claire séparation de l'environnement, l'agent, et la simulation (refaire les fonctions pour les généraliser si necessaire) presque fini
  Coder les fonctions bernouilli, log_density à la main et vérifier que la moyenne à un gradient X
  Approfondir modèle Heston
  Mise à jour du programme de rachat action : cv state : mean -> prix-mean
+ enregistrer un modèle et le charger
