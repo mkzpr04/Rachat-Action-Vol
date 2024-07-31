@@ -1,17 +1,33 @@
 import numpy as np
 import torch
 from RL_agent import StockNetwork
+from environnement import StockEnvironment
 import torch.optim as optim
 from tqdm import tqdm
 import pandas as pd
- 
+
+def simulate_price_heston(S0, V0, mu, kappa, theta, sigma, rho, days):
+    dt = 1 / days
+    prices = [S0]
+    volatilities = [V0]
+    S = S0
+    V = V0
+    for _ in range(days):
+        dW_S = np.random.normal(0, np.sqrt(dt))
+        dW_V = rho * dW_S + np.sqrt(1 - rho**2) * np.random.normal(0, np.sqrt(dt))
+        V = np.maximum(V + kappa * (theta - V) * dt + sigma * np.sqrt(V) * dW_V, 0)  
+        S = S * np.exp((mu - 0.5 * V) * dt + np.sqrt(V * dt) * dW_S)
+        prices.append(S)
+        volatilities.append(V)
+    return prices, volatilities
+
 def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal):
     total_stocks = 0
     total_spent = 0
-    prices, volatilities = model.simulate_price_heston(S0, V0, mu, kappa, theta, sigma, rho, days)
+    prices, volatilities = simulate_price_heston(S0, V0, mu, kappa, theta, sigma, rho, days)
     actions = []
     states = []
-    densities = []
+    log_probs = []
     probabilities = []
     done = False
     episode_payoff = 0
@@ -20,29 +36,29 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal):
         A_n = S0 if t == 0 else np.mean(prices[1:t+1])
         if t == days:
             action = 0
-            episode_payoff = model.payoff(A_n, total_spent) - (goal - total_stocks) * prices[t]
+            episode_payoff = StockEnvironment.payoff(A_n, total_spent) - (goal - total_stocks) * prices[t]
         if total_stocks >= goal and t >= 19:
             with torch.no_grad():
-                state = model.normalize_state((t, prices[t], A_n, total_stocks, total_spent), days, goal, S0)
+                state = StockEnvironment.normalize_state((t, prices[t], A_n, total_stocks, total_spent), days, goal, S0)
                 state_tensor = torch.tensor(state, dtype=torch.float32)
-                action, bell, density, prob = model.sample_action1(state_tensor, goal, days)
+                action, bell, log_prob = model.sample_action(state_tensor, goal, days)
                 ring_bell = bell.item() >= 0.5
                 if ring_bell:
                     done = True
-                    episode_payoff = model.payoff(A_n, total_spent) - (goal - total_stocks) * prices[t]
+                    episode_payoff = StockEnvironment.payoff(A_n, total_spent) - (goal - total_stocks) * prices[t]
         else:
             ring_bell = False
 
         if not done:
-            state = model.normalize_state((t, prices[t], A_n, total_stocks, total_spent), days, goal, S0)
+            state = StockEnvironment.normalize_state((t, prices[t], A_n, total_stocks, total_spent), days, goal, S0)
             state_tensor = torch.tensor(state, dtype=torch.float32)
 
             with torch.no_grad():
-                action, bell, density, prob = model.sample_action1(state_tensor, goal, days)
+                action, bell, log_prob = model.sample_action(state_tensor, goal, days)
                 action = action.item()
                 v_n = action * (goal - total_stocks)
-                densities.append(density)
-                probabilities.append(prob)
+                log_probs.append(log_prob)
+                probabilities.append(torch.exp(log_prob).item())
         else:
             v_n = 0
 
@@ -53,23 +69,23 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal):
             states.append(state)
         else:
             actions.append(0)
-            states.append(model.normalize_state((t, prices[t], A_n, total_stocks, total_spent), days, goal, S0))
+            states.append(StockEnvironment.normalize_state((t, prices[t], A_n, total_stocks, total_spent), days, goal, S0))
 
         if done:
             break
 
-    return states, actions, densities, episode_payoff, prices, probabilities
+    return states, actions, log_probs, episode_payoff, prices, probabilities
 
 def train(model, num_episodes, S0, V0, mu, kappa, theta, sigma, rho, days, goal):
     optimizer = optim.Adam(model.parameters(), lr=0.01)
 
     for episode in tqdm(range(num_episodes)):
-        states, actions, densities, episode_payoff, _, probabilities = simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal)
+        states, actions, log_probs, episode_payoff, _, probabilities = simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal)
         optimizer.zero_grad()
         loss = 0.0
 
-        for density in densities:
-            loss = loss - density    #log_density
+        for log_prob in log_probs:
+            loss = loss - log_prob    # log_density
 
         loss = loss * episode_payoff
         
@@ -87,12 +103,12 @@ def evaluate_policy(model, num_episodes, S0, V0, mu, kappa, theta, sigma, rho, d
     final_day_list = []
     actions_list = []
     for _ in range(num_episodes):
-        states, actions, densities, episode_payoff, prices, probabilities = simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal)
+        states, actions, log_probs, episode_payoff, prices, probabilities = simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal)
         final_day = len(actions) - 1
         total_spent = sum([a * prices[t] for t, a in enumerate(actions)])
         total_stocks = sum(actions)
         A_n = np.mean(prices[1:final_day + 1])
-        episode_payoff_value = model.payoff(A_n, total_spent)
+        episode_payoff_value = StockEnvironment.payoff(A_n, total_spent)
         total_spent_list.append(total_spent)
         total_stocks_list.append(total_stocks)
         A_n_list.append(A_n)
@@ -111,7 +127,7 @@ def display_optimal_plan(actions, prices):
     for t, action in enumerate(actions):
         print(f"Jour {t + 1}: Achat de {action} actions")
     print(f"Prix des actions: {prices[:len(actions)]}")
-    print(f"Actions cumulées: {np.cumsum([a for a in actions])}")
+    print(f"Actions cumulées: {np.cumsum(actions)}")
 
 def export_csv(states, actions, densities, probabilities, episode_payoff, prices, filename):
     actions_len = len(actions)
