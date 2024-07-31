@@ -44,10 +44,7 @@ class StockNetwork(nn.Module):
         dist = torch.distributions.Normal(mean, std)
         action_sampled = dist.sample() 
         u = np.random.uniform(0,1)
-        if u < bell:
-            bell = 1
-        else:
-            bell = 0
+        bell = 1 if u < bell else 0
 
         log_density = -0.5*np.log(2*np.pi*std**2)-((action_sampled-mean)**2)/(2*std**2)
 
