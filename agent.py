@@ -59,12 +59,7 @@ class StockNetwork(nn.Module):
         for episode in tqdm(range(num_episodes)):
             states, actions, log_probs, episode_payoff, _, probabilities = simulate_episode(self, env, S0, V0, mu, kappa, theta, sigma, rho, days, goal)
             optimizer.zero_grad()
-            loss = 0.0
-
-            for log_prob in log_probs:
-                loss = loss - log_prob  # log_density
-
-            loss = loss * episode_payoff
+            loss = -sum(log_probs) * episode_payoff
 
             if episode % 100 == 0:
                 print(f"Episode {episode}: Episode_payoff {episode_payoff}, Loss {loss}")
