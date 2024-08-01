@@ -29,7 +29,11 @@ class StockEnvironment:
         return prices, volatilities
     
     def execute_step(self, t, days, prices, total_stocks, total_spent, goal, S0, model, done):
-        A_n = S0 if t == 0 else np.mean(prices[1:t + 1])
+        if t == 0:
+            A_n = S0
+        else:
+            prix_moyenne = prices[t] - np.mean(prices[1:t + 1])
+            A_n = prix_moyenne
         episode_payoff = 0
         log_densities, probabilities, actions, states = [], [], [], []
 
