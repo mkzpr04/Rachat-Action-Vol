@@ -94,3 +94,8 @@ sinon : on fait rien
  Approfondir modèle Heston
  Mise à jour du programme de rachat action : cv state : mean -> prix-mean
  enregistrer un modèle et le charger
+
+Modif Gilles:
+Separation de simulate_episode en deux : simulate_episode et execute_step pour mettre execute step dans env
+Correction des bugs (rajout des variables manquantes, et suppression des variables en exces, compilation de certaines lignes de code quand ses possibles)
+suppression de la verification du gradient de la mean car ca apporte un bug
