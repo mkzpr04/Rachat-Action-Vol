@@ -92,7 +92,7 @@ sinon : on fait rien
  Claire séparation de l'environnement, l'agent, et la simulation (refaire les fonctions pour les généraliser si necessaire) presque fini
  Coder les fonctions bernouilli, log_density à la main et vérifier que la moyenne à un gradient X
  Approfondir modèle Heston
- Mise à jour du programme de rachat action : cv state : mean -> prix-mean
+ Mise à jour du programme de rachat action : cv state : mean -> prix-mean X
  enregistrer un modèle et le charger
 
 Modif Gilles:
