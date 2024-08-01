@@ -39,7 +39,7 @@ class StockEnvironment:
         elif total_stocks >= goal and t >= 19:
             with torch.no_grad():
                 state = self.normalize_state((t, prices[t], A_n, total_stocks, total_spent), days, goal, S0)
-                state_tensor = torch.tensor(state, dtype=torch.float32)
+                state_tensor = torch.tensor(state, dtype=torch.float32, requires_grad=True)
                 action, bell, log_density, prob = model.sample_action(state_tensor, goal, days)
                 if bell.item() >= 0.5:
                     done = True
@@ -47,7 +47,7 @@ class StockEnvironment:
         else:
             if not done:
                 state = self.normalize_state((t, prices[t], A_n, total_stocks, total_spent), days, goal, S0)
-                state_tensor = torch.tensor(state, dtype=torch.float32)
+                state_tensor = torch.tensor(state, dtype=torch.float32, requires_grad=True)
 
                 with torch.no_grad():
                     action, bell, log_density, prob = model.sample_action(state_tensor, goal, days)
