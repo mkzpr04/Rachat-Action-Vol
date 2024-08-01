@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 
 class StockEnvironment:
 
@@ -12,7 +13,7 @@ class StockEnvironment:
         return 100 * A_n - total_spent
 
     @staticmethod
-    def simulate_price_heston(self, S0, V0, mu, kappa, theta, sigma, rho, days):
+    def simulate_price_heston(S0, V0, mu, kappa, theta, sigma, rho, days):
         dt = 1 / days
         prices = [S0]
         volatilities = [V0]
@@ -26,3 +27,43 @@ class StockEnvironment:
             prices.append(S)
             volatilities.append(V)
         return prices, volatilities
+    
+    def execute_step(self, t, days, prices, total_stocks, total_spent, goal, S0, model, done):
+        A_n = S0 if t == 0 else np.mean(prices[1:t + 1])
+        episode_payoff = 0
+        log_densities, probabilities, actions, states = [], [], [], []
+
+        if t == days:
+            action = 0
+            episode_payoff = self.payoff(A_n, total_spent) - (goal - total_stocks) * prices[t]
+        elif total_stocks >= goal and t >= 19:
+            with torch.no_grad():
+                state = self.normalize_state((t, prices[t], A_n, total_stocks, total_spent), days, goal, S0)
+                state_tensor = torch.tensor(state, dtype=torch.float32)
+                action, bell, log_density, prob = model.sample_action(state_tensor, goal, days)
+                if bell.item() >= 0.5:
+                    done = True
+                    episode_payoff = self.payoff(A_n, total_spent) - (goal - total_stocks) * prices[t]
+        else:
+            if not done:
+                state = self.normalize_state((t, prices[t], A_n, total_stocks, total_spent), days, goal, S0)
+                state_tensor = torch.tensor(state, dtype=torch.float32)
+
+                with torch.no_grad():
+                    action, bell, log_density, prob = model.sample_action(state_tensor, goal, days)
+                    v_n = action.item() * (goal - total_stocks)
+                    log_densities.append(log_density)
+                    probabilities.append(prob)
+            else:
+                v_n = 0
+
+            if t < days:
+                total_spent += v_n * prices[t + 1]
+                total_stocks += v_n
+                actions.append(v_n)
+                states.append(state)
+            else:
+                actions.append(0)
+                states.append(self.normalize_state((t, prices[t], A_n, total_stocks, total_spent), days, goal, S0))
+
+        return states, actions, log_densities, episode_payoff, done, prices, probabilities
