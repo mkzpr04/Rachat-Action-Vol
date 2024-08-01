@@ -29,8 +29,9 @@ class StockNetwork(nn.Module):
         x = self.act2(self.hidden2(x))
         x = self.act3(self.hidden3(x))
         mean = self.mean_output(x)
+        mean.requires_grad_()
         bell = self.act_output(self.bell_output(x))
-        mean.retain_grad() # Ensure that the mean has a gradient
+        
         
         return mean, bell
 
