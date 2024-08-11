@@ -47,7 +47,7 @@ class StockNetwork(nn.Module):
         
         # Calcul de la moyenne des prix jusqu'au jour t
         mean_price_t = A_n
-        adjusted_S_n = S_n
+        adjusted_S_n = S_n - mean_price_t
         # Normalisation
         return np.array([
             t / days, 

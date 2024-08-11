@@ -100,19 +100,23 @@ Separation de simulate_episode en deux : simulate_episode et execute_step pour m
 Correction des bugs (rajout des variables manquantes, et suppression des variables en exces, compilation de certaines lignes de code quand ses possibles)
 suppression de la verification du gradient de la mean car ca apporte un bug
 
-à faire pour le 12/08 : travailler sur le fait que l'agent simu environnement soit "branchable" partout
+à faire pour le 12/08 : 
+ -travailler sur le fait que l'agent simu environnement soit "branchable" partout
 
-load un programme deja entrainé
+ -load un programme deja entrainé # done
 
-simu de A_n et S_n d'un côté et de l'autre côté, simu de la strat
+ -simu de A_n et S_n d'un côté et de l'autre côté, simu de la strat
 
-->Agent corrige : en prix - moyenne  # done 
-normalisation = lunette de vue donc agent # done + changement de variable effectué dans la normalisation
+ ->Agent corrige : en prix - moyenne  # done 
+ -normalisation = lunette de vue donc agent # done + changement de variable effectué dans la normalisation
 
-test: x plutôt que ** # done 
+ -test: x plutôt que ** # done 
 
-simulation avec payoff ou v_n =100 
+ -simulation avec payoff ou v_n =100 
  
 
-mettre une posssibilité pour que l'agent ne s'entraine pas automatiquement
+ -mettre une posssibilité pour que l'agent ne s'entraine pas automatiquement # done
 
+ -au lieu que l'output soit en nombre d'actions à acheter, mettez à la place le nombre d'actions à avoir dans son portefeuille plutôt, ça doit augmenter la stabilité de l'apprentissage (càd cumulé au lieu de différentiel)
+
+ 
