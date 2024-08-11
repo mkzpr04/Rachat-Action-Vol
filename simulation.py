@@ -1,11 +1,10 @@
 import numpy as np
 import torch
-from agent import StockNetwork 
+from RL_agent import StockNetwork 
 from environnement import StockEnvironment  
 import torch.optim as optim
 from tqdm import tqdm
 import pandas as pd
-
 
 def simulate_episode(model, env, S0, V0, mu, kappa, theta, sigma, rho, days, goal):
     total_stocks = 0
@@ -141,4 +140,3 @@ avg_total_spent, avg_total_stocks, avg_A_n, avg_episode_payoff_value, avg_final_
 # Simulation d'un épisode et exportation des résultats
 states, actions, densities, episode_payoff, prices, probabilities = simulate_episode(model, env, S0, V0, mu, kappa, theta, sigma, rho, days, goal)
 export_csv(states, actions, densities, probabilities, episode_payoff, prices, "episode.csv")
-

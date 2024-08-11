@@ -1,12 +1,8 @@
 import numpy as np
+from RL_agent import StockNetwork
 import torch
 
 class StockEnvironment:
-
-    @staticmethod
-    def normalize_state(state, days, goal, S0):
-        t, S_n, A_n, total_stocks, total_spent = state
-        return np.array([t / days, S_n / 100, A_n / 100, total_stocks / goal, total_spent / (goal * S0)])
 
     @staticmethod
     def payoff(A_n, total_spent):
@@ -21,7 +17,7 @@ class StockEnvironment:
         V = V0
         for _ in range(days):
             dW_S = np.random.normal(0, np.sqrt(dt))
-            dW_V = rho * dW_S + np.sqrt(1 - rho**2) * np.random.normal(0, np.sqrt(dt))
+            dW_V = rho * dW_S + np.sqrt(1 - rho*rho) * np.random.normal(0, np.sqrt(dt))
             V = np.maximum(V + kappa * (theta - V) * dt + sigma * np.sqrt(V) * dW_V, 0)
             S = S * np.exp((mu - 0.5 * V) * dt + np.sqrt(V * dt) * dW_S)
             prices.append(S)
@@ -29,11 +25,7 @@ class StockEnvironment:
         return prices, volatilities
     
     def execute_step(self, t, days, prices, total_stocks, total_spent, goal, S0, model, done):
-        if t == 0:
-            A_n = S0
-        else:
-            prix_moyenne = prices[t] - np.mean(prices[1:t + 1])
-            A_n = prix_moyenne
+        A_n = S0 if t == 0 else np.mean(prices[1:t + 1])
         episode_payoff = 0
         log_densities, probabilities, actions, states = [], [], [], []
 
@@ -42,16 +34,16 @@ class StockEnvironment:
             episode_payoff = self.payoff(A_n, total_spent) - (goal - total_stocks) * prices[t]
         elif total_stocks >= goal and t >= 19:
             with torch.no_grad():
-                state = self.normalize_state((t, prices[t], A_n, total_stocks, total_spent), days, goal, S0)
-                state_tensor = torch.tensor(state, dtype=torch.float32, requires_grad=True)
+                state = StockNetwork.normalize_state((t, prices[t], A_n, total_stocks, total_spent), days, goal, S0)
+                state_tensor = torch.tensor(state, dtype=torch.float32)
                 action, bell, log_density, prob = model.sample_action(state_tensor, goal, days)
                 if bell.item() >= 0.5:
                     done = True
                     episode_payoff = self.payoff(A_n, total_spent) - (goal - total_stocks) * prices[t]
         else:
             if not done:
-                state = self.normalize_state((t, prices[t], A_n, total_stocks, total_spent), days, goal, S0)
-                state_tensor = torch.tensor(state, dtype=torch.float32, requires_grad=True)
+                state = StockNetwork.normalize_state((t, prices[t], A_n, total_stocks, total_spent), days, goal, S0)
+                state_tensor = torch.tensor(state, dtype=torch.float32)
 
                 with torch.no_grad():
                     action, bell, log_density, prob = model.sample_action(state_tensor, goal, days)
@@ -68,6 +60,6 @@ class StockEnvironment:
                 states.append(state)
             else:
                 actions.append(0)
-                states.append(self.normalize_state((t, prices[t], A_n, total_stocks, total_spent), days, goal, S0))
+                states.append(StockNetwork.normalize_state((t, prices[t], A_n, total_stocks, total_spent), days, goal, S0))
 
         return states, actions, log_densities, episode_payoff, done, prices, probabilities

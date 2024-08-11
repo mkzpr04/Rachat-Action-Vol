@@ -99,3 +99,20 @@ Modif Gilles:
 Separation de simulate_episode en deux : simulate_episode et execute_step pour mettre execute step dans env
 Correction des bugs (rajout des variables manquantes, et suppression des variables en exces, compilation de certaines lignes de code quand ses possibles)
 suppression de la verification du gradient de la mean car ca apporte un bug
+
+à faire pour le 12/08 : travailler sur le fait que l'agent simu environnement soit "branchable" partout
+
+load un programme deja entrainé
+
+simu de A_n et S_n d'un côté et de l'autre côté, simu de la strat
+
+->Agent corrige : en prix - moyenne  # done 
+normalisation = lunette de vue donc agent # done + changement de variable effectué dans la normalisation
+
+test: x plutôt que ** # done 
+
+simulation avec payoff ou v_n =100 
+ 
+
+mettre une posssibilité pour que l'agent ne s'entraine pas automatiquement
+
