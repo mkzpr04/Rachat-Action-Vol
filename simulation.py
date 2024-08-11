@@ -112,7 +112,12 @@ def export_csv(states, actions, densities, probabilities, episode_payoff, prices
     df = pd.DataFrame(data)
     df.to_csv(filename, index=False)
 
-
+def get_user_choice():
+    while True:
+        choice = input("Voulez-vous entraîner le modèle (e) ou charger un modèle existant (c) ? (e/c) : ").strip().lower()
+        if choice in ['e', 'c']:
+            return choice
+        print("Choix invalide. Veuillez entrer 'e' pour entraîner ou 'c' pour charger un modèle.")
 
 # Initialisation du modèle et des paramètres
 model = StockNetwork()
@@ -129,13 +134,42 @@ goal = 100
 # Initialisation de l'environnement
 env = StockEnvironment()
 
-# Entraînement du modèle
-model.train_model(env, num_episodes=500, simulate_episode=simulate_episode, S0=S0, V0=V0, mu=mu, kappa=kappa, theta=theta, sigma=sigma, rho=rho, days=days, goal=goal)
+# charger un modèle existant ou en entraîner un nouveau
+choice = input("Voulez-vous charger un modèle existant (c) ou entraîner un nouveau modèle (e) ? (c/e) : ").strip().lower()
 
-num_episodes = 50
+if choice == 'c':
+    model_path = input("Entrez le chemin du modèle à charger : ").strip()
+    model.load_model(model_path)
+    print(f"Modèle chargé depuis {model_path}")
+
+    continue_training = input("Souhaitez-vous continuer l'entraînement du modèle ? (o/n) : ").strip().lower()
+    if continue_training == 'o':
+        num_episodes = int(input("Entrez le nombre d'épisodes supplémentaires pour l'entraînement : "))
+        model.train_model(env, num_episodes=num_episodes, simulate_episode=simulate_episode, S0=S0, V0=V0, mu=mu, kappa=kappa, theta=theta, sigma=sigma, rho=rho, days=days, goal=goal)
+        
+        save_path = input("Entrez le chemin pour sauvegarder le modèle : ").strip()
+        model.save_model(save_path)
+        print(f"Modèle sauvegardé à {save_path}")
+
+elif choice == 'e':
+    # Entraînement d'un nouveau modèle
+    num_episodes = int(input("Entrez le nombre d'épisodes pour l'entraînement : "))
+    model.train_model(env, num_episodes=num_episodes, simulate_episode=simulate_episode, S0=S0, V0=V0, mu=mu, kappa=kappa, theta=theta, sigma=sigma, rho=rho, days=days, goal=goal)
+    
+    save_path = input("Entrez le chemin pour sauvegarder le modèle : ").strip()
+    model.save_model(save_path)
+    print(f"Modèle sauvegardé à {save_path}")
 
 # Évaluation de la politique
+num_episodes = 50
 avg_total_spent, avg_total_stocks, avg_A_n, avg_episode_payoff_value, avg_final_day, actions_list = evaluate_policy(model, env, num_episodes, S0, V0, mu, kappa, theta, sigma, rho, days, goal)
+
+print(f"\nRésultats de l'évaluation de la politique sur {num_episodes} épisodes :")
+print(f"Total dépensé en moyenne: {avg_total_spent}")
+print(f"Total d'actions en moyenne: {avg_total_stocks}")
+print(f"Prix moyen des actions: {avg_A_n}")
+print(f"Payoff moyen: {avg_episode_payoff_value}")
+print(f"Jour final moyen: {avg_final_day}")
 
 # Simulation d'un épisode et exportation des résultats
 states, actions, densities, episode_payoff, prices, probabilities = simulate_episode(model, env, S0, V0, mu, kappa, theta, sigma, rho, days, goal)
