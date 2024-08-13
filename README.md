@@ -116,6 +116,8 @@ suppression de la verification du gradient de la mean car ca apporte un bug
 
  - possibilité de faire un fichier de paramètre (ini,json)
 
+ -ajouter de la dimension dans la simulation des prix puis adapter
+
  - au lieu que l'output soit en nombre d'actions à acheter, mettez à la place le nombre d'actions à avoir dans son portefeuille plutôt, ça doit augmenter la stabilité de l'apprentissage (càd cumulé au lieu de différentiel)
  
  -travailler sur le fait que l'agent simu environnement soit "branchable" partout
