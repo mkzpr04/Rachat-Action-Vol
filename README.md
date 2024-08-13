@@ -60,7 +60,6 @@ retourner la moyenne des episodes et non plus le meilleur, ou le dernier épisod
 Normalisation changée (min max)
 distribution gaussienne avec torch.distributions.Normal
 
-
 supprimer la possibilité de vendre + que ce qu'on possède (stock market)
 
 Exportation excel,
@@ -101,22 +100,33 @@ Correction des bugs (rajout des variables manquantes, et suppression des variabl
 suppression de la verification du gradient de la mean car ca apporte un bug
 
 à faire pour le 12/08 : 
- -travailler sur le fait que l'agent simu environnement soit "branchable" partout
 
  -load un programme deja entrainé # done
-
- -simu de A_n et S_n d'un côté et de l'autre côté, simu de la strat
 
  ->Agent corrige : en prix - moyenne  # done 
  -normalisation = lunette de vue donc agent # done + changement de variable effectué dans la normalisation
 
  -test: x plutôt que ** # done 
-
- -simulation avec payoff ou v_n =100 
  
-
  -mettre une posssibilité pour que l'agent ne s'entraine pas automatiquement # done
 
- -au lieu que l'output soit en nombre d'actions à acheter, mettez à la place le nombre d'actions à avoir dans son portefeuille plutôt, ça doit augmenter la stabilité de l'apprentissage (càd cumulé au lieu de différentiel)
 
+à faire pour le 15/08/24:
+
+
+ - possibilité de faire un fichier de paramètre (ini,json)
+
+ - au lieu que l'output soit en nombre d'actions à acheter, mettez à la place le nombre d'actions à avoir dans son portefeuille plutôt, ça doit augmenter la stabilité de l'apprentissage (càd cumulé au lieu de différentiel)
  
+ -travailler sur le fait que l'agent simu environnement soit "branchable" partout
+ -simulation avec 1. payoff actualisé ou 2. v_n =100 à la fin de l'épisode ou 3.  j'ai q_n le jour n, j'achète v_n+1, j'ai q_n+v+1 le jour n+1
+ 
+q_(n+1)
+ 
+ -mettre une seed fixe
+
+ -simu de A_n et S_n d'un côté et de l'autre côté, simu de la strat
+
+ -tracer S_n, A_n, q_n avc matplotlib et la cloche_n
+
+ - E(payoff) devient formule : payoff_1*cloche_1 + (1-cloche_1)*(payoff_2*cloche_2 +  (1-cloche_2)* (...))

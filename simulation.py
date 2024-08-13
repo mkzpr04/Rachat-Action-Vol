@@ -2,6 +2,7 @@ import numpy as np
 import torch
 from RL_agent import StockNetwork 
 from environnement import StockEnvironment  
+from nn import Net
 import torch.optim as optim
 from tqdm import tqdm
 import pandas as pd
@@ -13,7 +14,7 @@ def simulate_episode(model, env, S0, V0, mu, kappa, theta, sigma, rho, days, goa
     actions, states, log_densities, probabilities = [], [], [], []
     done, episode_payoff = False, 0
 
-    for t in range(days + 1):
+    for t in range(days+1):
         step_states, step_actions, step_log_densities, episode_payoff, done, step_prices, step_probabilities = env.execute_step(
             t, days, prices, total_stocks, total_spent, goal, S0, model, done)
         
@@ -23,7 +24,7 @@ def simulate_episode(model, env, S0, V0, mu, kappa, theta, sigma, rho, days, goa
         probabilities.extend(step_probabilities)
         
         if t < days:
-            total_spent += step_actions[0] * prices[t + 1]
+            total_spent += step_actions[0] * prices[t+1]
             total_stocks += step_actions[0]
 
         if done:
@@ -120,7 +121,17 @@ def get_user_choice():
         print("Choix invalide. Veuillez entrer 'e' pour entraîner ou 'c' pour charger un modèle.")
 
 # Initialisation du modèle et des paramètres
-model = StockNetwork()
+
+model_name = input("Quel modèle voulez-vous utiliser ? (par exemple : Net, StockNetwork, etc.) : ").strip()
+
+# Étape 2 : Charger dynamiquement la classe du modèle choisi
+try:
+    # Importation dynamique de la classe de modèle
+    ModelClass = globals()[model_name]
+    model = ModelClass()  # Instanciation du modèle
+except KeyError:
+    raise ValueError(f"Le modèle '{model_name}' n'est pas reconnu. Assurez-vous que le nom du modèle est correct.")
+
 S0 = 100
 V0 = 0.04  # Volatilité initiale
 mu = 0.1   # Rendement attendu

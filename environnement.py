@@ -1,5 +1,6 @@
 import numpy as np
 from RL_agent import StockNetwork
+from nn import Net
 import torch
 
 class StockEnvironment:
@@ -63,3 +64,14 @@ class StockEnvironment:
                 states.append(StockNetwork.normalize_state((t, prices[t], A_n, total_stocks, total_spent), days, goal, S0))
 
         return states, actions, log_densities, episode_payoff, done, prices, probabilities
+
+    def prendre_decision(n, S_tensor, A_tensor, q, net):
+        # Normalisation des données et appel du modèle
+        normalized_input = net.normalize(n + 1, S_tensor[n], A_tensor[n], q[n])
+        out = net(normalized_input)
+    
+        # Sortie du modèle
+        nombre_actions = out[0]  # Nombre d'actions à avoir dans le portefeuille à la fin de la journée (n+1)
+        prob_sonner_cloche = out[1]  # Probabilité associée à "sonner la cloche"
+    
+        return nombre_actions, prob_sonner_cloche
