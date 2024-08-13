@@ -125,7 +125,7 @@ suppression de la verification du gradient de la mean car ca apporte un bug
  
 q_(n+1)
  
- -mettre une seed fixe
+ -mettre une seed fixe #done
 
  -simu de A_n et S_n d'un côté et de l'autre côté, simu de la strat
 
