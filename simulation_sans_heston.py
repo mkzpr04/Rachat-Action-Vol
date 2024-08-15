@@ -112,7 +112,35 @@ def export_csv(states, actions, densities, probabilities, episode_payoff, prices
     }
     df = pd.DataFrame(data)
     df.to_csv(filename, index=False)
+def plot_episode(S_n, A_n, q_n, cloche_n):
+    plt.figure(figsize=(14, 10))
 
+    plt.subplot(2, 1, 1)  # 2 lignes, 1 colonne, 1er sous-graphe
+    plt.plot(S_n, label="S_n (Prix de l'action au jour n)", color="blue", marker='o')
+    plt.plot(A_n, label="A_n (Quantité totale d'actions au jour n)", color="green", marker='s')
+    
+    for i, cloche_value in enumerate(cloche_n):
+        if cloche_value == 1:
+            plt.axvline(x=i, color="purple", linestyle='--', label="cloche_n = 1" if i == 0 else "")
+    
+    plt.title("Évolution de S_n, A_n et cloche_n au fil du temps")
+    plt.xlabel("Jour")
+    plt.ylabel("Valeurs")
+    plt.legend()
+    plt.grid(True)
+
+    plt.subplot(2, 1, 2)  # 2 lignes, 1 colonne, 2e sous-graphe
+    plt.plot(q_n, label="q_n (Quantité d'actions achetées au jour n)", color="red", marker='^')
+    
+    plt.title("Quantité d'actions achetées (q_n) au fil du temps")
+    plt.xlabel("Jour")
+    plt.ylabel("Quantité d'actions achetées")
+    plt.legend()
+    plt.grid(True)
+
+    plt.tight_layout()
+    plt.show()
+    
 def get_user_choice():
     while True:
         choice = input("Voulez-vous entraîner le modèle (e) ou charger un modèle existant (c) ? (e/c) : ").strip().lower()
@@ -184,3 +212,11 @@ print(f"Jour final moyen: {avg_final_day}")
 # Simulation d'un épisode et exportation des résultats
 states, actions, densities, episode_payoff, prices, probabilities = simulate_episode(model, env, S0, V0, mu, kappa, theta, sigma, rho, days, goal)
 export_csv(states, actions, densities, probabilities, episode_payoff, prices, "episode_sans_heston.csv")
+S_n = prices
+A_n = [state[2]*100 for state in states]  
+q_n = actions  
+price_threshold = 100  # seuil de prix
+cloche_n = [1 if state[0] > price_threshold else 0 for state in states]  # 1 si le prix dépasse le seuil, 0 sinon
+
+# Tracé des résultats
+plot_episode(S_n, A_n, q_n, cloche_n)
