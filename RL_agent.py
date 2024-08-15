@@ -61,21 +61,18 @@ class StockNetwork(nn.Module):
         optimizer = optim.Adam(self.parameters(), lr=0.01)
 
         for episode in tqdm(range(num_episodes)):
-            states, actions, log_probs, episode_payoff, _, probabilities = simulate_episode(self, env, S0, V0, mu, kappa, theta, sigma, rho, days, goal)
-            optimizer.zero_grad()
+           states, actions, densities, episode_payoff, _, probabilities = simulate_episode(self, env, S0, V0, mu, kappa, theta, sigma, rho, days, goal)
+           optimizer.zero_grad()
+           loss = 0.0
+           for density in densities:
+               loss = loss - density    #log_density
+           loss*= episode_payoff
 
-            total_log_probs = torch.sum(torch.stack(log_probs))
-
-            # Ensure that the episode_payoff is converted to a tensor
-            episode_payoff_tensor = torch.tensor(episode_payoff, dtype=torch.float32, requires_grad=True)
-            # Compute the loss
-            loss = -total_log_probs * episode_payoff_tensor
-
-            if episode % 100 == 0:
-                print(f"Episode {episode}: Episode_payoff {episode_payoff}, Loss {loss.item()}")
-
-            loss.backward()
-            optimizer.step()
+           if episode % 100 == 0:
+               print(f"Episode {episode}: Episode_payoff {episode_payoff}, Loss {loss}")
+           loss = torch.tensor(loss, requires_grad=True)
+           loss.backward()
+           optimizer.step()
         
     def load_model(self, path):
         self.load_state_dict(torch.load(path))
