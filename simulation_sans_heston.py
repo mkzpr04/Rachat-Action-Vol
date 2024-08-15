@@ -13,7 +13,8 @@ torch.manual_seed(0)
 def simulate_episode(model, env, S0, V0, mu, kappa, theta, sigma, rho, days, goal):
     total_stocks = 0
     total_spent = 0
-    prices, volatilities = env.simulate_price_heston(S0, V0, mu, kappa, theta, sigma, rho, days)
+    X = np.random.normal(0, 1, days)
+    prices = env.simulate_price(S0, X, sigma)
     actions, states, log_densities, probabilities = [], [], [], []
     done, episode_payoff = False, 0
 
@@ -35,7 +36,6 @@ def simulate_episode(model, env, S0, V0, mu, kappa, theta, sigma, rho, days, goa
 
     return states, actions, log_densities, episode_payoff, prices, probabilities
 
-
 def evaluate_policy(model, env, num_episodes, S0, V0, mu, kappa, theta, sigma, rho, days, goal):
     total_spent_list = []
     total_stocks_list = []
@@ -43,11 +43,9 @@ def evaluate_policy(model, env, num_episodes, S0, V0, mu, kappa, theta, sigma, r
     payoff_list = []
     final_day_list = []
     actions_list = []
-
+   
     for _ in range(num_episodes):
-        states, actions, log_densities, episode_payoff, prices, probabilities = simulate_episode(
-            model, env, S0, V0, mu, kappa, theta, sigma, rho, days, goal
-        )
+        states, actions, log_densities, episode_payoff, prices, probabilities = simulate_episode(model, env, S0, V0, mu, kappa, theta, sigma, rho, days, goal)
         final_day = len(actions) - 1
         total_spent = sum([a * prices[t] for t, a in enumerate(actions)])
         total_stocks = sum(actions)
@@ -67,7 +65,6 @@ def evaluate_policy(model, env, num_episodes, S0, V0, mu, kappa, theta, sigma, r
     avg_final_day = np.mean(final_day_list)
 
     return avg_total_spent, avg_total_stocks, avg_A_n, avg_episode_payoff_value, avg_final_day, actions_list
-
 
 def display_optimal_plan(actions, prices):
     print("\nProgramme d'achat optimal:")
@@ -186,4 +183,4 @@ print(f"Jour final moyen: {avg_final_day}")
 
 # Simulation d'un épisode et exportation des résultats
 states, actions, densities, episode_payoff, prices, probabilities = simulate_episode(model, env, S0, V0, mu, kappa, theta, sigma, rho, days, goal)
-export_csv(states, actions, densities, probabilities, episode_payoff, prices, "episode.csv")
+export_csv(states, actions, densities, probabilities, episode_payoff, prices, "episode_sans_heston.csv")

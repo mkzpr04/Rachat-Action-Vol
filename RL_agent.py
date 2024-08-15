@@ -31,15 +31,15 @@ class StockNetwork(nn.Module):
 
         # Vérification de la validité de 'mean'
         if torch.isnan(mean).any() or torch.isinf(mean).any():
-            raise ValueError("Le tenseur 'mean' contient des valeurs NaN ou infinies.")
+            mean = torch.tensor(0.0)
 
-        action_sampled = mean + std * torch.randn_like(mean)
+        total_stock_target = mean + std * torch.randn_like(mean)
         u = np.random.uniform(0, 1)
         bell = 1 if u < bell.item() else 0
-        log_density = -0.5 * torch.log(2 * torch.tensor(np.pi) * (std *std)) - ((action_sampled - mean) *(action_sampled - mean)) / (2 * (std *std))
-        prob = 0.5 * (1 + torch.erf((action_sampled - mean) / (std * torch.sqrt(torch.tensor(2.0)))))
+        log_density = -0.5 * torch.log(2 * torch.tensor(np.pi) * (std *std)) - ((total_stock_target - mean) *(total_stock_target - mean)) / (2 * (std *std))
+        prob = 0.5 * (1 + torch.erf((total_stock_target - mean) / (std * torch.sqrt(torch.tensor(2.0)))))
 
-        return action_sampled, bell, log_density, prob
+        return total_stock_target, bell, log_density, prob
     
     @staticmethod
     def normalize_state(state, days, goal, S0):
