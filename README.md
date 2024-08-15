@@ -129,6 +129,6 @@ q_(n+1)
 
  -simu de A_n et S_n d'un côté et de l'autre côté, simu de la strat
 
- -tracer S_n, A_n, q_n avc matplotlib et la cloche_n
+ -tracer S_n, A_n, q_n avc matplotlib et la cloche_n #done
 
  - E(payoff) devient formule : payoff_1*cloche_1 + (1-cloche_1)*(payoff_2*cloche_2 +  (1-cloche_2)* (...))
