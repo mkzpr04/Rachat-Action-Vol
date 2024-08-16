@@ -39,7 +39,7 @@ class StockEnvironment:
         log_densities, probabilities, actions, states = [], [], [], []
 
         if t == days:
-            action = 0 # méthode 2 : action = goal - total_stocks
+            # méthode 2 : action = goal - total_stocks
             episode_payoff = self.payoff(A_n, total_spent) - (goal - total_stocks) * prices[t]
         elif total_stocks >= goal and t >= 19:
             with torch.no_grad():

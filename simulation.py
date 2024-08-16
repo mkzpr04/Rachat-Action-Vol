@@ -6,9 +6,9 @@ from nn import Net
 import torch.optim as optim
 from tqdm import tqdm
 import pandas as pd
+import matplotlib.pyplot as plt
 
 np.random.seed(0)
-torch.manual_seed(0)
 
 def simulate_episode(model, env, S0, V0, mu, kappa, theta, sigma, rho, days, goal):
     total_stocks = 0

@@ -132,3 +132,17 @@ q_(n+1)
  -tracer S_n, A_n, q_n avc matplotlib et la cloche_n #done
 
  - E(payoff) devient formule : payoff_1*cloche_1 + (1-cloche_1)*(payoff_2*cloche_2 +  (1-cloche_2)* (...))
+
+- fixer la seed dans la simulation.
+
+- environnement + simu fusionner dans 1 premeir temps pour limiter la complexite 
+
+-enlever les symboles "."
+ 
+-mettre deux graphes en 1, avec échelles différentes sur l'axe des Y pour la courbe rouge
+ 
+tracer le cumulé plutôt que v
+ - dimensionnalité
+ -simplfiier code
+ - execute_step + simulation  ensemble
+ -forcer achat action

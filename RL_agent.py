@@ -33,7 +33,7 @@ class StockNetwork(nn.Module):
         if torch.isnan(mean).any() or torch.isinf(mean).any():
             mean = torch.tensor(0.0)
 
-        total_stock_target = mean + std * torch.randn_like(mean)
+        total_stock_target = mean + std * torch.randn_like(mean) # générer une normale avec numpy
         u = np.random.uniform(0, 1)
         bell = 1 if u < bell.item() else 0
         log_density = -0.5 * torch.log(2 * torch.tensor(np.pi) * (std *std)) - ((total_stock_target - mean) *(total_stock_target - mean)) / (2 * (std *std))
