@@ -57,11 +57,11 @@ class StockNetwork(nn.Module):
             total_spent / (goal * S0)
         ])
 
-    def train_model(self, env, num_episodes, simulate_episode, S0, V0, mu, kappa, theta, sigma, rho, days, goal):
+    def train_model(self, num_episodes, simulate_episode, S0, V0, mu, kappa, theta, sigma, rho, days, goal):
         optimizer = optim.Adam(self.parameters(), lr=0.01)
 
         for episode in tqdm(range(num_episodes)):
-           states, actions, densities, episode_payoff, _, probabilities = simulate_episode(self, env, S0, V0, mu, kappa, theta, sigma, rho, days, goal)
+           states, actions, densities, episode_payoff, _, probabilities = simulate_episode(self, S0, V0, mu, kappa, theta, sigma, rho, days, goal)
            optimizer.zero_grad()
            loss = 0.0
            for density in densities:
