@@ -286,10 +286,7 @@ print(f"Jour final moyen: {avg_final_day}")
 # Simulation d'un épisode et exportation des résultats
 states, actions, densities, episode_payoff, prices, probabilities = simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal)
 export_csv(states, actions, densities, probabilities, episode_payoff, prices, "episode_sans_heston.csv")
-# Simulation d'un épisode et exportation des résultats
-states, actions, densities, episode_payoff, prices, probabilities,bell = simulate_episode(model,  S0, V0, mu, kappa, theta, sigma, rho, days, goal)
-export_csv(states, actions, densities, probabilities, episode_payoff, prices, "episode_sans_heston.csv")
-bell=1
+bell=0
 S_n = prices
 A_n = [state[2]*100 for state in states]  
 q_n = [state[3] * 100 for state in states] 
