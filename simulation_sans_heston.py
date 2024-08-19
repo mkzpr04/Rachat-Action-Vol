@@ -9,11 +9,7 @@ import matplotlib.pyplot as plt
 
 
 def simulate_price(S_n, X, sigma):
-    prices = [S_n]
-    for x in X:
-        S_n = S_n + sigma * x
-        prices.append(S_n)
-    return prices
+    return [S_n] + [S_n := S_n + sigma * x for x in X]
 
 def payoff(A_n, total_spent):
     return 100 * A_n - total_spent
