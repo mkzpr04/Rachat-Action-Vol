@@ -192,23 +192,24 @@ def export_csv(states, actions, densities, probabilities, episode_payoff, prices
     df.to_csv(filename, index=False)
 def plot_episode(S_n, A_n, q_n, cloche_n):
     plt.figure(figsize=(14, 7))
+
     fig, ax1 = plt.subplots(figsize=(14, 7))
 
     ax1.set_xlabel('Jour')
-    ax1.set_ylabel("S_n (Prix de l'action) et A_n (Quantité totale d'actions)", color='black')
+    ax1.set_ylabel("S_n et A_n en euro (€)", color='black')
     ax1.plot(S_n, label="S_n (Prix de l'action au jour n)", color="blue")
-    ax1.plot(A_n, label="A_n (Quantité totale d'actions au jour n)", color="green")
+    ax1.plot(A_n, label="A_n (Prix moyen des actions aux jours n)", color="green")
     ax1.tick_params(axis='y', labelcolor='black')
 
     for i, cloche_value in enumerate(cloche_n):
         if cloche_value == 1:
             ax1.axvline(x=i, color="purple", linestyle='--', label="cloche_n = 1" if i == 0 else "")
+
     ax2 = ax1.twinx()  
-    ax2.set_ylabel('q_n (Quantité d\'actions achetées)', color='red')
-    ax2.plot(q_n, label="q_n (Quantité d'actions achetées au jour n)", color="red", linestyle='-')
+    ax2.set_ylabel('q_n en valeur reel', color='red')
+    ax2.plot(q_n, label="q_n (Quantité totale d'actions au jour n)", color="red", linestyle='-')
     ax2.tick_params(axis='y', labelcolor='red')
 
-    # Ajout des légendes
     fig.tight_layout()
     ax1.legend(loc="upper left")
     ax2.legend(loc="upper right")
@@ -285,11 +286,14 @@ print(f"Jour final moyen: {avg_final_day}")
 # Simulation d'un épisode et exportation des résultats
 states, actions, densities, episode_payoff, prices, probabilities = simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal)
 export_csv(states, actions, densities, probabilities, episode_payoff, prices, "episode_sans_heston.csv")
+# Simulation d'un épisode et exportation des résultats
+states, actions, densities, episode_payoff, prices, probabilities,bell = simulate_episode(model,  S0, V0, mu, kappa, theta, sigma, rho, days, goal)
+export_csv(states, actions, densities, probabilities, episode_payoff, prices, "episode_sans_heston.csv")
+bell=1
 S_n = prices
 A_n = [state[2]*100 for state in states]  
-q_n = actions  
-price_threshold = 100  # seuil de prix
-cloche_n = [1 if state[0] > price_threshold else 0 for state in states]  # 1 si le prix dépasse le seuil, 0 sinon
+q_n = [state[3] * 100 for state in states] 
+cloche_n = [1 if bell==1 else 0 for state in states]  
 
 # Tracé des résultats
 plot_episode(S_n, A_n, q_n, cloche_n)
