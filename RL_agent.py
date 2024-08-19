@@ -46,8 +46,7 @@ class StockNetwork(nn.Module):
         t, S_n, A_n, total_stocks, total_spent = state
         
         # Calcul de la moyenne des prix jusqu'au jour t
-        mean_price_t = A_n
-        adjusted_S_n = S_n
+        adjusted_S_n = A_n - S_n
         # Normalisation
         return np.array([
             t / days, 
@@ -58,6 +57,7 @@ class StockNetwork(nn.Module):
         ])
 
     def train_model(self, num_episodes, simulate_episode, S0, V0, mu, kappa, theta, sigma, rho, days, goal):
+        np.random.seed(0)
         optimizer = optim.Adam(self.parameters(), lr=0.01)
 
         for episode in tqdm(range(num_episodes)):

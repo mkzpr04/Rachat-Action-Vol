@@ -6,7 +6,7 @@ from tqdm import tqdm
 import pandas as pd
 import matplotlib.pyplot as plt 
 
-np.random.seed(0)
+
 
 def simulate_price(S_n, X, sigma):
     prices = [S_n]
@@ -18,50 +18,8 @@ def simulate_price(S_n, X, sigma):
 def payoff(A_n, total_spent):
     return 100 * A_n - total_spent
 
-def execute_step( t, days, prices, total_stocks, total_spent, goal, S0, model, done):
-        A_n = S0 if t == 0 else np.mean(prices[1:t+1])
-        episode_payoff = 0
-        log_densities, probabilities, actions, states = [], [], [], []
-
-        if t == days:
-            action = 0 # méthode 2 : action = goal - total_stocks
-            episode_payoff = payoff(A_n, total_spent) - (goal - total_stocks) * prices[t]
-        elif total_stocks >= goal and t >= 19:
-            with torch.no_grad():
-                state = StockNetwork.normalize_state((t, prices[t], A_n, total_stocks, total_spent), days, goal, S0)
-                state_tensor = torch.tensor(state, dtype=torch.float32)
-                total_stock_target, bell, log_density, prob = model.sample_action(state_tensor, goal, days)
-                if bell.item() >= 0.5:
-                    done = True
-                    episode_payoff = payoff(A_n, total_spent) - (goal - total_stocks) * prices[t]
-        else:
-            if not done:
-                state = StockNetwork.normalize_state((t, prices[t], A_n, total_stocks, total_spent), days, goal, S0)
-                state_tensor = torch.tensor(state, dtype=torch.float32)
-
-                with torch.no_grad():
-                    total_stock_target, bell, log_density, prob = model.sample_action(state_tensor, goal, days)
-                    v_n = total_stock_target.item() * (goal - total_stocks)
-                    log_densities.append(log_density)
-                    probabilities.append(prob)
-            else:
-                v_n = 0
-
-            if t < days:
-                total_spent += v_n * prices[t + 1]
-                total_stocks += v_n
-                actions.append(v_n)
-                states.append(state)
-            else:
-                actions.append(0)
-                states.append(StockNetwork.normalize_state((t, prices[t], A_n, total_stocks, total_spent), days, goal, S0))
-
-        return states, actions, log_densities, episode_payoff, done, prices, probabilities
-
-
-
-
 def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal):
+    np.random.seed(0)
     total_stocks = 0
     total_spent = 0
     X = np.random.normal(0, 1, days)
@@ -70,17 +28,43 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal):
     done, episode_payoff = False, 0
 
     for t in range(days+1):
-        step_states, step_actions, step_log_densities, episode_payoff, done, step_prices, step_probabilities = execute_step(
-            t, days, prices, total_stocks, total_spent, goal, S0, model, done)
-        
-        states.extend(step_states)
-        actions.extend(step_actions)
-        log_densities.extend(step_log_densities)
-        probabilities.extend(step_probabilities)
-        
+        A_n = S0 if t == 0 else np.mean(prices[1:t+1])
+        if t == days:
+            action = 0
+            episode_payoff = payoff(A_n, total_spent) 
+        if total_stocks >= goal and t >= 19:
+            with torch.no_grad():
+                state = StockNetwork.normalize_state((t, prices[t], A_n, total_stocks, total_spent), days, goal, S0)
+                state_tensor = torch.tensor(state, dtype=torch.float32)
+                action, bell, log_prob = model.sample_action(state_tensor, goal, days)
+                ring_bell = bell.item() >= 0.5
+                if ring_bell:
+                    done = True
+                    episode_payoff = payoff(A_n, total_spent) 
+        else:
+            ring_bell = False
+
+        if not done:
+            state = StockNetwork.normalize_state((t, prices[t], A_n, total_stocks, total_spent), days, goal, S0)
+            state_tensor = torch.tensor(state, dtype=torch.float32)
+
+            with torch.no_grad():
+                action, bell, log_density, prob = model.sample_action(state_tensor, goal, days)
+                action = action.item()
+                v_n = action * (goal - total_stocks)
+                log_densities.append(log_density)
+                probabilities.append(torch.exp(prob).item())
+        else:
+            v_n = 0
+
         if t < days:
-            total_spent += step_actions[0] * prices[t+1]
-            total_stocks += step_actions[0]
+            total_spent += v_n * prices[t+1]
+            total_stocks += v_n
+            actions.append(v_n)
+            states.append(state)
+        else:
+            actions.append(0)
+            states.append(StockNetwork.normalize_state((t, prices[t], A_n, total_stocks, total_spent), days, goal, S0))
 
         if done:
             break
@@ -88,6 +72,7 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal):
     return states, actions, log_densities, episode_payoff, prices, probabilities
 
 def evaluate_policy(model, num_episodes, S0, V0, mu, kappa, theta, sigma, rho, days, goal):
+    np.random.seed(0)
     total_spent_list = []
     total_stocks_list = []
     A_n_list = []
@@ -156,7 +141,7 @@ def export_csv(states, actions, densities, probabilities, episode_payoff, prices
         "Total_Spent": total_spent_list,
         "actions": actions,
         "density": densities,
-        "Probabilité action": [prob.item() for prob in probabilities],
+        "Probabilité action": [prob for prob in probabilities],
         "payoff": payoff_list,
         "verifTotalStock": verifTotalStock,
         "VerifTotalSpent": veriftotalspent_list
