@@ -164,32 +164,30 @@ def export_csv(states, actions, densities, probabilities, episode_payoff, prices
     df = pd.DataFrame(data)
     df.to_csv(filename, index=False)
 def plot_episode(S_n, A_n, q_n, cloche_n):
-    plt.figure(figsize=(14, 10))
+    plt.figure(figsize=(14, 7))
+    fig, ax1 = plt.subplots(figsize=(14, 7))
+    ax1.set_xlabel('Jour')
+    ax1.set_ylabel("S_n (Prix de l'action) et A_n (Quantité totale d'actions)", color='black')
+    ax1.plot(S_n, label="S_n (Prix de l'action au jour n)", color="blue")
+    ax1.plot(A_n, label="A_n (Quantité totale d'actions au jour n)", color="green")
+    ax1.tick_params(axis='y', labelcolor='black')
 
-    plt.subplot(2, 1, 1)  # 2 lignes, 1 colonne, 1er sous-graphe
-    plt.plot(S_n, label="S_n (Prix de l'action au jour n)", color="blue", marker='o')
-    plt.plot(A_n, label="A_n (Quantité totale d'actions au jour n)", color="green", marker='s')
-    
     for i, cloche_value in enumerate(cloche_n):
         if cloche_value == 1:
-            plt.axvline(x=i, color="purple", linestyle='--', label="cloche_n = 1" if i == 0 else "")
-    
-    plt.title("Évolution de S_n, A_n et cloche_n au fil du temps")
-    plt.xlabel("Jour")
-    plt.ylabel("Valeurs")
-    plt.legend()
-    plt.grid(True)
+            ax1.axvline(x=i, color="purple", linestyle='--', label="cloche_n = 1" if i == 0 else "")
 
-    plt.subplot(2, 1, 2)  # 2 lignes, 1 colonne, 2e sous-graphe
-    plt.plot(q_n, label="q_n (Quantité d'actions achetées au jour n)", color="red", marker='^')
-    
-    plt.title("Quantité d'actions achetées (q_n) au fil du temps")
-    plt.xlabel("Jour")
-    plt.ylabel("Quantité d'actions achetées")
-    plt.legend()
-    plt.grid(True)
+    ax2 = ax1.twinx()  
+    ax2.set_ylabel('q_n (Quantité d\'actions achetées)', color='red')
+    ax2.plot(q_n, label="q_n (Quantité d'actions achetées au jour n)", color="red", linestyle='-')
+    ax2.tick_params(axis='y', labelcolor='red')
 
-    plt.tight_layout()
+    # Ajout des légendes
+    fig.tight_layout()
+    ax1.legend(loc="upper left")
+    ax2.legend(loc="upper right")
+    
+    plt.title("Évolution de S_n, A_n, q_n et cloche_n au fil du temps")
+    plt.grid(True)
     plt.show()
     
 def get_user_choice():
