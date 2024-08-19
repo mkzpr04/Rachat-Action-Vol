@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
 import numpy as np
+from tqdm import tqdm
+import torch.optim as optim
 
 enable_cuda = True
 n_neurons_per_layer = 512
@@ -55,3 +57,26 @@ class Net(nn.Module):
                 q_previous / self.Q - 0.5,
             ]
         ).T
+    def load_model(self, path):
+        self.load_state_dict(torch.load(path))
+        self.eval()
+    
+    def save_model(self, path):
+        torch.save(self.state_dict(), path)
+    def train_model(self, env, num_episodes, simulate_episode, S0, V0, mu, kappa, theta, sigma, rho, days, goal):
+        optimizer = optim.Adam(self.parameters(), lr=0.01)
+
+        for episode in tqdm(range(num_episodes)):
+           states, actions, densities, episode_payoff, _, probabilities = simulate_episode(self, env, S0, V0, mu, kappa, theta, sigma, rho, days, goal)
+           optimizer.zero_grad()
+           loss = 0.0
+           for density in densities:
+               loss = loss - density    #log_density
+           loss*= episode_payoff
+
+           if episode % 100 == 0:
+               print(f"Episode {episode}: Episode_payoff {episode_payoff}, Loss {loss}")
+           loss = torch.tensor(loss, requires_grad=True)
+           loss.backward()
+           optimizer.step()
+        
