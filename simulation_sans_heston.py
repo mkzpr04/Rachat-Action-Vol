@@ -9,11 +9,7 @@ import matplotlib.pyplot as plt
 
 
 def simulate_price(S_n, X, sigma):
-    prices = [S_n]
-    for x in X:
-        S_n = S_n + sigma * x
-        prices.append(S_n)
-    return prices
+    return [S_n] + [S_n := S_n + sigma * x for x in X]
 
 def payoff(A_n, total_spent):
     return 100 * A_n - total_spent
@@ -305,6 +301,7 @@ print(f"Payoff moyen: {avg_episode_payoff_value}")
 print(f"Jour final moyen: {avg_final_day}")
 
 # Simulation d'un épisode et exportation des résultats
+
 prices, A_n, q_n, total_spent, actions, log_densities, probabilities, cloche_n, episode_payoff = simulate_episode(model,  S0, V0, mu, kappa, theta, sigma, rho, days, goal)
 #export_csv(states, actions, log_densities, probabilities, episode_payoff, prices, "episode_sans_heston.csv")
 S_n = prices
