@@ -46,12 +46,11 @@ class StockNetwork(nn.Module):
         t, S_n, A_n, total_stocks, total_spent = state
         
         # Calcul de la moyenne des prix jusqu'au jour t
-        adjusted_S_n = A_n - S_n
-        # Normalisation
+        adjusted_A_n = S_n - A_n
         return np.array([
             t / days, 
-            adjusted_S_n / 100,  
-            A_n / 100, 
+            S_n / 100,  
+            adjusted_A_n / 100, 
             total_stocks / goal, 
             total_spent / (goal * S0)
         ])
@@ -61,11 +60,11 @@ class StockNetwork(nn.Module):
         optimizer = optim.Adam(self.parameters(), lr=0.01)
 
         for episode in tqdm(range(num_episodes)):
-           states, actions, densities, episode_payoff, _, probabilities = simulate_episode(self, S0, V0, mu, kappa, theta, sigma, rho, days, goal)
+           prices, A_n, q_n, total_spent, actions, log_densities, probabilities, bell_signals, episode_payoff = simulate_episode(self, S0, V0, mu, kappa, theta, sigma, rho, days, goal)
            optimizer.zero_grad()
            loss = 0.0
-           for density in densities:
-               loss = loss - density    #log_density
+           for log_density in log_densities:
+               loss = loss - log_density    #log_density
            loss*= episode_payoff
 
            if episode % 100 == 0:

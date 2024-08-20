@@ -20,14 +20,39 @@ def payoff(A_n, total_spent):
 
 def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal):
     np.random.seed(0)
-    total_stocks = 0
-    total_spent = 0
-    X = np.random.normal(0, 1, days)
+    q_n, A_n, actions, bell_signals, total_spent, X = np.zeros(days+1), np.zeros(days+1), np.zeros(days+1), np.zeros(days+1), 0, np.random.normal(0, 1, days)
     prices = simulate_price(S0, X, sigma)
-    actions, states, log_densities, probabilities = [], [], [], []
-    done, episode_payoff = False, 0
+    states, actions, log_densities, probabilities = [], [], [], []
+    
+    for t in range(days):
+        A_n[t] = np.mean(prices[1:t+1]) if t > 0 else S0  
+        state = StockNetwork.normalize_state((t, prices[t], A_n[t], q_n[t], total_spent), days, goal, S0)
+        state_tensor = torch.tensor(state, dtype=torch.float32)
 
-    for t in range(days+1):
+        with torch.no_grad():
+            total_stock_target, bell, log_density, prob = model.sample_action(state_tensor, goal, days)
+            q_n[t+1] = total_stock_target.item() * (goal - q_n[t]) if t < days - 1 else goal
+            v_n = q_n[t+1] - q_n[t] 
+            total_spent += v_n * prices[t]
+            log_densities.append(log_density)
+            probabilities.append(torch.exp(-prob).item())
+            actions.append(v_n) # todo passer en array
+            bell_signals[t] = bell
+
+            if (bell >= 0.5 and t >= 19 and q_n[t+1]>= goal):
+                return prices, A_n, q_n, total_spent, actions, probabilities, bell_signals, payoff(np.mean(prices), total_spent)
+    # t = days
+    if q_n[days] < goal:
+        final_adjustment = goal - q_n[days]
+        total_spent += final_adjustment * prices[days]  
+        actions[-1] += final_adjustment 
+        q_n[days] = goal
+
+    return prices, A_n, q_n, total_spent, actions, log_densities, probabilities, bell_signals, payoff(np.mean(prices), total_spent)
+
+
+        
+"""
         A_n = S0 if t == 0 else np.mean(prices[1:t+1])
         if t == days:
             action = 0
@@ -68,9 +93,10 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal):
 
         if done:
             break
+        
 
     return states, actions, log_densities, episode_payoff, prices, probabilities
-
+""" 
 def evaluate_policy(model, num_episodes, S0, V0, mu, kappa, theta, sigma, rho, days, goal):
     np.random.seed(0)
     total_spent_list = []
@@ -81,16 +107,14 @@ def evaluate_policy(model, num_episodes, S0, V0, mu, kappa, theta, sigma, rho, d
     actions_list = []
    
     for _ in range(num_episodes):
-        states, actions, log_densities, episode_payoff, prices, probabilities = simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal)
+        prices, A_n, q_n, total_spent, actions, log_densities, probabilities, bell_signals, episode_payoff = simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal)
         final_day = len(actions) - 1
-        total_spent = sum([a * prices[t] for t, a in enumerate(actions)])
-        total_stocks = sum(actions)
-        A_n = np.mean(prices[1:final_day + 1])
-        episode_payoff_value = payoff(A_n, total_spent)
+        total_spent = sum([a * prices[t] for t, a in enumerate(actions)])# non plus total_spent = np.sum(np.array(actions) * np.array(prices[:len(actions)])) 
+        total_stocks = np.sum(actions)
         total_spent_list.append(total_spent)
         total_stocks_list.append(total_stocks)
         A_n_list.append(A_n)
-        payoff_list.append(episode_payoff_value)
+        payoff_list.append(episode_payoff)
         final_day_list.append(final_day)
         actions_list.append(actions)
 
@@ -109,12 +133,48 @@ def display_optimal_plan(actions, prices):
     print(f"Prix des actions: {prices[:len(actions)]}")
     print(f"Actions cumulées: {np.cumsum(actions)}")
 
-
-def export_csv(states, actions, densities, probabilities, episode_payoff, prices, filename):
+"""
+def export_csv_2(states, actions, log_densities, probabilities, episode_payoff, prices, q_n, A_n, filename):
     actions_len = len(actions)
     
-    # Vérification que les longueurs des listes sont cohérentes
-    if len(states) != actions_len or len(densities) != actions_len or len(probabilities) != actions_len:
+    if len(states) != actions_len or len(log_densities) != actions_len or len(probabilities) != actions_len or len(q_n) != actions_len + 1:
+        raise ValueError("Les longueurs des listes ne correspondent pas.")
+    
+    # Calcul des listes nécessaires pour le DataFrame
+    payoff_list = np.full(actions_len, episode_payoff)
+    total_stocks_list = q_n[:-1] * 100  # Exclure le dernier élément car q_n a une longueur de actions_len + 1
+    total_spent_list = np.array([state[4] * 10000 for state in states])
+    veriftotalspent_list = np.zeros(actions_len)
+    
+    # Calcul des valeurs vérifiées
+    verifTotalStock = q_n[:-1]
+    cumulative_sum = 0
+    for t in range(actions_len):
+        cumulative_sum += prices[t] * actions[t]
+        veriftotalspent_list[t] = cumulative_sum
+
+    # Création du DataFrame
+    data = {
+        "Day": np.arange(actions_len),
+        "Prices(S_n)": prices[:actions_len],
+        "A_n": A_n[:actions_len] * 100,
+        "Total_Stocks": total_stocks_list,
+        "Total_Spent": total_spent_list,
+        "Actions": actions,
+        "Log Density": log_densities,
+        "Probability": probabilities,
+        "Payoff": payoff_list,
+        "VerifTotalStock": verifTotalStock * 100,
+        "VerifTotalSpent": veriftotalspent_list
+    }
+    df = pd.DataFrame(data)
+    df.to_csv(filename, index=False)
+"""
+"""
+def export_csv(states, actions, log_densities, probabilities, episode_payoff, prices, filename):
+    actions_len = len(actions)
+    
+    if len(states) != actions_len or len(log_densities) != actions_len or len(probabilities) != actions_len:
         raise ValueError("Les longueurs des listes ne correspondent pas.")
     
     # Calcul des listes nécessaires pour le DataFrame
@@ -140,7 +200,7 @@ def export_csv(states, actions, densities, probabilities, episode_payoff, prices
         "Total_Stocks": total_stocks_list,
         "Total_Spent": total_spent_list,
         "actions": actions,
-        "density": densities,
+        "log density": log_densities,
         "Probabilité action": [prob for prob in probabilities],
         "payoff": payoff_list,
         "verifTotalStock": verifTotalStock,
@@ -148,6 +208,7 @@ def export_csv(states, actions, densities, probabilities, episode_payoff, prices
     }
     df = pd.DataFrame(data)
     df.to_csv(filename, index=False)
+"""
 def plot_episode(S_n, A_n, q_n, cloche_n):
     plt.figure(figsize=(14, 7))
 
@@ -164,7 +225,7 @@ def plot_episode(S_n, A_n, q_n, cloche_n):
             ax1.axvline(x=i, color="purple", linestyle='--', label="cloche_n = 1" if i == 0 else "")
 
     ax2 = ax1.twinx()  
-    ax2.set_ylabel('q_n en valeur reel', color='red')
+    ax2.set_ylabel('q_n en valeur réelle', color='red')
     ax2.plot(q_n, label="q_n (Quantité totale d'actions au jour n)", color="red", linestyle='-')
     ax2.tick_params(axis='y', labelcolor='red')
 
@@ -244,16 +305,9 @@ print(f"Payoff moyen: {avg_episode_payoff_value}")
 print(f"Jour final moyen: {avg_final_day}")
 
 # Simulation d'un épisode et exportation des résultats
-states, actions, densities, episode_payoff, prices, probabilities = simulate_episode(model,  S0, V0, mu, kappa, theta, sigma, rho, days, goal)
-export_csv(states, actions, densities, probabilities, episode_payoff, prices, "episode_sans_heston.csv")
-# Simulation d'un épisode et exportation des résultats
-states, actions, densities, episode_payoff, prices, probabilities,bell = simulate_episode(model,  S0, V0, mu, kappa, theta, sigma, rho, days, goal)
-export_csv(states, actions, densities, probabilities, episode_payoff, prices, "episode_sans_heston.csv")
-bell=0
+prices, A_n, q_n, total_spent, actions, log_densities, probabilities, cloche_n, episode_payoff = simulate_episode(model,  S0, V0, mu, kappa, theta, sigma, rho, days, goal)
+#export_csv(states, actions, log_densities, probabilities, episode_payoff, prices, "episode_sans_heston.csv")
 S_n = prices
-A_n = [state[2]*100 for state in states]  
-q_n = [state[3] * 100 for state in states] 
-cloche_n = [1 if bell==1 else 0 for state in states]  
 
 # Tracé des résultats
 plot_episode(S_n, A_n, q_n, cloche_n)
