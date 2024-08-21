@@ -36,8 +36,10 @@ class StockNetwork(nn.Module):
         total_stock_target = mean + std * torch.randn_like(mean) # générer une normale avec numpy
         u = np.random.uniform(0, 1)
         bell = 1 if u < bell.item() else 0
-        log_density = -0.5 * torch.log(2 * torch.tensor(np.pi) * (std *std)) - ((total_stock_target - mean) *(total_stock_target - mean)) / (2 * (std *std))
+        log_density = -0.5 * torch.log(2 * torch.tensor(np.pi) * (std *std)) - ((total_stock_target - mean) *(total_stock_target - mean)) / (2 * (std *std)) # vraisemblance de la première action mais il mnanque la proba de sonner la cloche
         prob = 0.5 * (1 + torch.erf((total_stock_target - mean) / (std * torch.sqrt(torch.tensor(2.0)))))
+
+        #vraisemblance d'avoir la sonné la cloche étant donné la proba
 
         return total_stock_target, bell, log_density, prob
     
@@ -55,8 +57,9 @@ class StockNetwork(nn.Module):
             total_spent / (goal * S0)
         ])
 
+# environnement entraine l'agent : todo train_model dans environnement
     def train_model(self, num_episodes, simulate_episode, S0, V0, mu, kappa, theta, sigma, rho, days, goal):
-        np.random.seed(0)
+        #np.random.seed(0)
         optimizer = optim.Adam(self.parameters(), lr=0.01)
 
         for episode in tqdm(range(num_episodes)):
