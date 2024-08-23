@@ -30,7 +30,7 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, fl
                 total_stock_target, bell, log_density, prob = model.sample_action(state_tensor, goal, days) # nb trajectoire à chaque étape (batch), flag : on train ou pas, seed_fixe pour l'évaluation (pas l'entrainement)
             else:
                 np.random.seed(0)
-                total_stock_target, bell, log_density, prob = model.sample_action(state_tensor, goal, days) 
+                total_stock_target, bell = model.forward(state_tensor, goal, days) 
             q_n[t+1] = total_stock_target.item() * (goal - q_n[t]) if t < days - 1 else goal
             v_n = q_n[t+1] - q_n[t] 
             total_spent += v_n * prices[t]
