@@ -106,7 +106,7 @@ suppression de la verification du gradient de la mean car ca apporte un bug
  ->Agent corrige : en prix - moyenne  # done 
  -normalisation = lunette de vue donc agent # done + changement de variable effectué dans la normalisation
 
- -test: x plutôt que ** # done 
+ -test: x plutôt que ** pour optimiser les calculs # done 
  
  -mettre une posssibilité pour que l'agent ne s'entraine pas automatiquement # done
 
@@ -146,3 +146,6 @@ tracer le cumulé plutôt que v
  -simplfiier code
  - execute_step + simulation  ensemble
  -forcer achat action
+
+array plutôt que les liste car les tailles sont fixes
+

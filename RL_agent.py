@@ -29,7 +29,6 @@ class StockNetwork(nn.Module):
         mean, bell = self.forward(state)
         std = (goal / days) * 0.05
 
-        # Vérification de la validité de 'mean'
         if torch.isnan(mean).any() or torch.isinf(mean).any():
             mean = torch.tensor(0.0)
 
@@ -37,9 +36,14 @@ class StockNetwork(nn.Module):
         u = np.random.uniform(0, 1)
         bell = 1 if u < bell.item() else 0
         log_density = -0.5 * torch.log(2 * torch.tensor(np.pi) * (std *std)) - ((total_stock_target - mean) *(total_stock_target - mean)) / (2 * (std *std)) # vraisemblance de la première action mais il mnanque la proba de sonner la cloche
-        prob = 0.5 * (1 + torch.erf((total_stock_target - mean) / (std * torch.sqrt(torch.tensor(2.0)))))
+        if log_density.dim() > 1:
+            log_density = log_density.sum()
 
-        #vraisemblance d'avoir la sonné la cloche étant donné la proba
+        prob = 0.5 * (1 + torch.erf((total_stock_target - mean) / (std * torch.sqrt(torch.tensor(2.0))))) # pq on retire la mean?
+
+        # Calcul de la vraisemblance d'avoir sonné la cloche
+        bell_prob = bell * prob + (1 - bell) * (1 - prob)
+        log_density += torch.log(bell_prob)
 
         return total_stock_target, bell, log_density, prob
     
@@ -57,25 +61,6 @@ class StockNetwork(nn.Module):
             total_spent / (goal * S0)
         ])
 
-# environnement entraine l'agent : todo train_model dans environnement
-    def train_model(self, num_episodes, simulate_episode, S0, V0, mu, kappa, theta, sigma, rho, days, goal):
-        #np.random.seed(0)
-        optimizer = optim.Adam(self.parameters(), lr=0.01)
-
-        for episode in tqdm(range(num_episodes)):
-           prices, A_n, q_n, total_spent, actions, log_densities, probabilities, bell_signals, episode_payoff = simulate_episode(self, S0, V0, mu, kappa, theta, sigma, rho, days, goal)
-           optimizer.zero_grad()
-           loss = 0.0
-           for log_density in log_densities:
-               loss = loss - log_density    #log_density
-           loss*= episode_payoff
-
-           if episode % 100 == 0:
-               print(f"Episode {episode}: Episode_payoff {episode_payoff}, Loss {loss}")
-           loss = torch.tensor(loss, requires_grad=True)
-           loss.backward()
-           optimizer.step()
-        
     def load_model(self, path):
         self.load_state_dict(torch.load(path))
         self.eval()
