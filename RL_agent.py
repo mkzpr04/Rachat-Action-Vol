@@ -48,7 +48,7 @@ class StockNetwork(nn.Module):
         return total_stock_target, bell, log_density, prob
     
     @staticmethod
-    def normalize_state(state, days, goal, S0):
+    def normalize(state, days, goal, S0):
         t, S_n, A_n, total_stocks, total_spent = state
         adjusted_A_n = A_n #S_n - A_n
         return np.array([
