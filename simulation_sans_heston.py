@@ -21,7 +21,6 @@ def payoff(A_n, total_spent):
     return 100 * A_n - total_spent
 
 def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, flag, batch_size=2):
-    np.random.seed(0)
     # Initialisation des matrices pour les batchs
     q_n = np.zeros((days + 1, batch_size))
     q_n[days, :] = goal + 1 # pour considérer que l'épisode termine avant t = days
@@ -37,8 +36,8 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, fl
     S_n = np.zeros((days + 1, batch_size))
     S_n = simulate_price(S0, X, sigma)
 
-    for t in range(days): 
-        for b in range(batch_size):
+    for b in range(batch_size): 
+        for t in range(days):
             A_n[t, b] = np.mean(S_n[1:t+1, b]) if t > 0 else S0
             state = StockNetwork.normalize_state((t, S_n[t, b], A_n[t, b], q_n[t, b], total_spent[t, b]), days, goal, S0)
             state_tensor = torch.tensor(state, dtype=torch.float32)
@@ -91,12 +90,10 @@ def train_model(model, simulate_episode, num_episodes, S0, V0, mu, kappa, theta,
         S, A_n, q_n, total_spent, actions, log_densities, probabilities, bell_signals, episode_payoff = results
 
         optimizer.zero_grad()
-        loss = torch.tensor(0.0, requires_grad=True)
-
+        loss = torch.tensor(0.0, dtype=torch.float32, requires_grad=True)
         for b in range(batch_size):
             for log_density in log_densities[:, b]:
                 loss = loss - log_density
-
         loss *= torch.mean(torch.tensor(episode_payoff, dtype=torch.float32, requires_grad=True)) # moyenne des payoffs de chaque batch
 
         if episode % 50 == 0:
@@ -106,7 +103,6 @@ def train_model(model, simulate_episode, num_episodes, S0, V0, mu, kappa, theta,
         optimizer.step()
 
 def evaluate_policy(model, num_episodes, S0, V0, mu, kappa, theta, sigma, rho, days, goal, batch_size=2):
-    np.random.seed(0)
     total_spent_list = []
     total_stocks_list = []
     A_n_list = []

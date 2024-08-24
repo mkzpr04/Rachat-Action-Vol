@@ -7,14 +7,14 @@ from tqdm import tqdm
 class StockNetwork(nn.Module):
     def __init__(self):
         super().__init__() 
-        self.hidden1 = nn.Linear(5, 256)
+        self.hidden1 = nn.Linear(5, 512)
         self.act1 = nn.ReLU()
-        self.hidden2 = nn.Linear(256, 256)
+        self.hidden2 = nn.Linear(512, 512)
         self.act2 = nn.ReLU()
-        self.hidden3 = nn.Linear(256, 256)
+        self.hidden3 = nn.Linear(512, 512)
         self.act3 = nn.ReLU()
-        self.mean_output = nn.Linear(256, 1)
-        self.bell_output = nn.Linear(256, 1)
+        self.mean_output = nn.Linear(512, 1)
+        self.bell_output = nn.Linear(512, 1)
         self.act_output = nn.Sigmoid()
 
     def forward(self, x):
@@ -32,14 +32,14 @@ class StockNetwork(nn.Module):
         if torch.isnan(mean).any() or torch.isinf(mean).any():
             mean = torch.tensor(0.0)
 
-        total_stock_target = mean + std * torch.randn_like(mean) # générer une normale avec numpy
+        total_stock_target = mean + std * torch.randn_like(mean)
         u = np.random.uniform(0, 1)
         bell = 1 if u < bell.item() else 0
         log_density = -0.5 * torch.log(2 * torch.tensor(np.pi) * (std *std)) - ((total_stock_target - mean) *(total_stock_target - mean)) / (2 * (std *std)) # vraisemblance de la première action mais il mnanque la proba de sonner la cloche
         if log_density.dim() > 1:
             log_density = log_density.sum()
 
-        prob = 0.5 * (1 + torch.erf((total_stock_target - mean) / (std * torch.sqrt(torch.tensor(2.0))))) # pq on retire la mean?
+        prob = 0.5 * (1 + torch.erf((total_stock_target - mean) / (std * torch.sqrt(torch.tensor(2.0))))) 
 
         # Calcul de la vraisemblance d'avoir sonné la cloche
         bell_prob = bell * prob + (1 - bell) * (1 - prob)
@@ -50,9 +50,7 @@ class StockNetwork(nn.Module):
     @staticmethod
     def normalize_state(state, days, goal, S0):
         t, S_n, A_n, total_stocks, total_spent = state
-        
-        # Calcul de la moyenne des prix jusqu'au jour t
-        adjusted_A_n = S_n - A_n
+        adjusted_A_n = A_n #S_n - A_n
         return np.array([
             t / days, 
             S_n / 100,  
