@@ -5,7 +5,7 @@ import torch.optim as optim
 from tqdm import tqdm
 import pandas as pd
 import matplotlib.pyplot as plt 
-
+from nn import Net
 
 
 def simulate_price(S_n, X, sigma, batch_size=2):
@@ -33,13 +33,17 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, fl
     episode_payoff = np.zeros(batch_size)
 
     X = np.random.normal(0, 1, (days, batch_size))
-    S_n = np.zeros((days + 1, batch_size))
     S_n = simulate_price(S0, X, sigma)
 
     for b in range(batch_size): 
         for t in range(days):
             A_n[t, b] = np.mean(S_n[1:t+1, b]) if t > 0 else S0
-            state = StockNetwork.normalize_state((t, S_n[t, b], A_n[t, b], q_n[t, b], total_spent[t, b]), days, goal, S0)
+            if flag:
+               state = model.normalize((t, S_n[t, b], A_n[t, b], q_n[t, b], total_spent[t, b]), days, goal, S0)
+            else:
+               state = model.normalize(t + 1, torch.tensor(S_n[t, b], dtype=torch.float32), 
+                                        torch.tensor(A_n[t, b], dtype=torch.float32),
+                                        torch.tensor(q_n[t, b], dtype=torch.float32)).numpy()
             state_tensor = torch.tensor(state, dtype=torch.float32)
 
             log_density = None
@@ -53,9 +57,9 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, fl
                     prob = prob.item()
                 else:
                     np.random.seed(0)
-                    total_stock_target, bell = model.forward(state_tensor)
+                    total_stock_target= model.forward(state_tensor)
                     total_stock_target = total_stock_target.item()
-                    bell = bell.item()
+                    
 
                 q_n[t+1, b] = total_stock_target * (goal - q_n[t, b]) if t < days - 1 else goal
                 v_n = q_n[t+1, b] - q_n[t, b]
@@ -63,13 +67,16 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, fl
                 log_densities[t, b] = log_density
                 probabilities[t, b] = np.exp(-prob)
                 actions[t, b] = v_n
-                bell_signals[t, b] = bell
 
 
-                if bell >= 0.5 and t >= 19 and q_n[t+1, b] >= goal:
-                    q_n[t::, b] = q_n[t, b]
-                    episode_payoff[b] = payoff(A_n[t, b], total_spent[t, b])
-                    break
+                if flag:
+                   bell_signals[t, b] = bell
+                   if bell >= 0.5 and t >= 19 and q_n[t+1, b] >= goal:
+                       q_n[t::, b] = q_n[t, b]
+                       episode_payoff[b] = payoff(A_n[t, b], total_spent[t, b])
+                       break
+                else:
+                   bell_signals=np.zeros(days+1)
         
     for b in range(batch_size):
         A_n[days, b] = np.mean(S_n[1:days+1, b])
@@ -83,6 +90,9 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, fl
     return S_n, A_n, q_n, total_spent, actions, log_densities, probabilities, bell_signals, episode_payoff
 
 def train_model(model, simulate_episode, num_episodes, S0, V0, mu, kappa, theta, sigma, rho, days, goal, batch_size=2):
+    if isinstance(model, Net):
+        print("Le modèle Net ne nécessite pas d'entraînement.")
+        return
     optimizer = optim.Adam(model.parameters(), lr=0.01)
 
     for episode in tqdm(range(num_episodes)):
@@ -103,6 +113,9 @@ def train_model(model, simulate_episode, num_episodes, S0, V0, mu, kappa, theta,
         optimizer.step()
 
 def evaluate_policy(model, num_episodes, S0, V0, mu, kappa, theta, sigma, rho, days, goal, batch_size=2):
+    if isinstance(model, Net):
+        print("Le modèle Net ne nécessite pas d'évaluation de politique.")
+        return None,None,None,None,None,None
     total_spent_list = []
     total_stocks_list = []
     A_n_list = []
@@ -113,7 +126,7 @@ def evaluate_policy(model, num_episodes, S0, V0, mu, kappa, theta, sigma, rho, d
     for _ in range(num_episodes):
         # Simuler un épisode avec batch_size
         S_n, A_n, q_n, total_spent, actions, log_densities, probabilities, bell_signals, episode_payoff = simulate_episode(
-            model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, flag=False, batch_size=batch_size
+            model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, flag=True, batch_size=batch_size
         )
         
         # Prendre la première trajectoire (batch 0) pour l'évaluation
@@ -208,6 +221,8 @@ try:
     # Importation dynamique de la classe de modèle
     ModelClass = globals()[model_name]
     model = ModelClass()  # Instanciation du modèle
+     # Définition du flag en fonction du modèle
+    flag = True if model_name == 'StockNetwork' else False
 except KeyError:
     raise ValueError(f"Le modèle '{model_name}' n'est pas reconnu. Assurez-vous que le nom du modèle est correct.")
 
@@ -273,7 +288,7 @@ print(f"Actions moyennes par jour: {actions_list}")
 
 # Simulation d'un épisode et exportation des résultats
 S_n, A_n, q_n, total_spent, actions, log_densities, probabilities, cloche_n, episode_payoff = simulate_episode(
-    model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, flag=False, batch_size=2
+    model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, flag=flag, batch_size=2
 )
 
 # Exportation des résultats du premier batch
