@@ -127,25 +127,27 @@ q_(n+1)
  
  -mettre une seed fixe #done
 
- -simu de A_n et S_n d'un côté et de l'autre côté, simu de la strat
+ -simu de A_n et S_n d'un côté et de l'autre côté, simu de la strat #done
 
  -tracer S_n, A_n, q_n avc matplotlib et la cloche_n #done
 
- - E(payoff) devient formule : payoff_1*cloche_1 + (1-cloche_1)*(payoff_2*cloche_2 +  (1-cloche_2)* (...))
 
-- fixer la seed dans la simulation.
+- fixer la seed dans la simulation. #done
 
-- environnement + simu fusionner dans 1 premeir temps pour limiter la complexite 
+- environnement + simu fusionner dans 1 premeir temps pour limiter la complexite #done
 
 -enlever les symboles "."
  
 -mettre deux graphes en 1, avec échelles différentes sur l'axe des Y pour la courbe rouge
  
 tracer le cumulé plutôt que v
- - dimensionnalité
- -simplfiier code
- - execute_step + simulation  ensemble
- -forcer achat action
+ - dimensionnalité (batch) # done
+ -simplfiier code # done
+ - execute_step + simulation  ensemble #done pour simulation_sans_heston, reste à faire pour simulation
+ -forcer achat action #done
 
-array plutôt que les liste car les tailles sont fixes
+array plutôt que les liste car les tailles sont fixes # done
+
+ - E(payoff) devient formule : payoff_1*cloche_1 + (1-cloche_1)*(payoff_2*cloche_2 +  (1-cloche_2)* (...))
+ - connecter le nn pour le tester
 
