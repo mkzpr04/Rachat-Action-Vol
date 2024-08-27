@@ -8,11 +8,11 @@ import matplotlib.pyplot as plt
 from nn import Net
 
 
-def simulate_price(S_n, X, sigma, batch_size=2):
-    S_n = np.zeros((len(X) + 1, batch_size))
-    S_n[0,:] = S0
-    for t in range(1, len(X) + 1):
-        S_n[t] = S_n[t-1] + sigma * X[t-1]
+def simulate_price(X, sigma):
+    # S_n initialisé avec la même forme que X mais avec une ligne supplémentaire pour S0
+    S_n = np.zeros((X.shape[0] + 1, X.shape[1]))
+    S_n[0, :] = S0
+    S_n[1:] = S0 + np.cumsum(sigma * X, axis=0)
     return S_n
 
 def payoff(A_n, total_spent):
@@ -31,52 +31,52 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, fl
     episode_payoff = np.zeros(batch_size)
 
     X = np.random.normal(0, 1, (days, batch_size))
-    S_n = np.zeros((days + 1, batch_size))
-    S_n = simulate_price(S0, X, sigma)
+    S_n = simulate_price(X, sigma)
 
-    for b in range(batch_size):  # pas de boucle sur batch_size, tester en timant 
-        for t in range(days):
-            A_n[t, b] = np.mean(S_n[1:t+1, b]) if t > 0 else S0
-            state = StockNetwork.normalize_state((t, S_n[t, b], A_n[t, b], q_n[t, b], total_spent[t, b]), days, goal, S0)
-            state_tensor = torch.tensor(state, dtype=torch.float32)
+    for t in range(days):
+        A_n[t, :] = np.mean(S_n[1:t+1, :], axis=0) if t > 0 else S0
+        state = StockNetwork.normalize((t, S_n[t, :], A_n[t, :], q_n[t, :], total_spent[t, :]), days, goal, S0) # todo verif
+        state_tensor = torch.tensor(state, dtype=torch.float32)
 
-            log_density = None
-            prob = 0
+        log_density = None
+        prob = 0
 
-            with torch.no_grad():
-                if flag:
-                    total_stock_target, bell, log_density, prob = model.sample_action(state_tensor, goal, days)
-                    # Conversion to scalar
-                    total_stock_target = total_stock_target.item()
-                    prob = prob.item()
-                else:
-                    np.random.seed(0)
-                    total_stock_target, bell = model.forward(state_tensor)
-                    total_stock_target = total_stock_target.item()
-                    bell = bell.item()
+        with torch.no_grad():
+            if flag:
+                total_stock_target, bell, log_density, prob = model.sample_action(state_tensor, goal, days)
+                # Conversion to scalar
+                total_stock_target = total_stock_target.item()
+                prob = prob.item()
+            else:
+                np.random.seed(0)
+                total_stock_target, bell = model.forward(state_tensor)
+                total_stock_target = total_stock_target.item()
+                bell = bell.item()
 
-                q_n[t+1, 0] = total_stock_target * (goal - q_n[t, :] ) if t < days - 1 else goal 
-                v_n = q_n[t+1, b] - q_n[t, b]
-                total_spent[t+1, b] = total_spent[t, b] + v_n * S_n[t+1, b]
-                log_densities[t, b] = log_density
-                probabilities[t, b] = np.exp(-prob)
-                actions[t, b] = v_n
-                bell_signals[t, b] = bell
+                q_n[t+1, :] = total_stock_target * (goal - q_n[t, :] ) if t < days - 1 else goal 
+                v_n = q_n[t+1, :] - q_n[t, :]
+                total_spent[t+1, :] = total_spent[t, :] + v_n * S_n[t+1, :]
+                log_densities[t, :] = log_density
+                probabilities[t, :] = np.exp(-prob)
+                actions[t, :] = v_n
+                bell_signals[t, :] = bell
 
-
-                if bell >= 0.5 and t >= 19 and q_n[t+1, :] >= goal: # vecteur bool q_n[t+1, :] >= goal
-                    q_n[t::, b] = q_n[t, b]
-                    episode_payoff[b] = payoff(A_n[t, b], total_spent[t, b])
-                    break
-        
-    for b in range(batch_size):
-        A_n[days, b] = np.mean(S_n[1:days+1, b])
-        if q_n[days, b] < goal:
-            final_adjustment = goal - q_n[days, b]
-            total_spent[days, b] += final_adjustment * S_n[days, b]
-            actions[-1, b] += final_adjustment
-            q_n[days, b] = goal
-        episode_payoff[b] = payoff(A_n[days, b], total_spent[days, b])
+                condition = (bell_signals[t, :] >= 0.5) & (t >= 19) & (q_n[t + 1, :] >= goal)
+                if np.any(condition):
+                    q_n[t+1:, condition] = q_n[t, condition]  # Maintenir q_n constant après la cloche
+                    not_assigned = np.isnan(episode_payoff[condition])
+                    if np.any(not_assigned): # Si le payoff n'est pas assigné alors on le calcule
+                        episode_payoff[condition] = payoff(A_n[t, condition], total_spent[t, condition])
+    
+    condition = q_n[days, :] < goal
+    if np.any(condition):
+        A_n[days, condition] = np.mean(S_n[1:days + 1, :], axis=0)[condition]
+        final_adjustment = goal - q_n[days, condition]
+        total_spent[days, condition] += final_adjustment * S_n[days, condition]
+        actions[-1, condition] += final_adjustment
+        q_n[days, condition] = goal
+    
+    episode_payoff = payoff(A_n[days, :], total_spent[days, :])
 
     return S_n, A_n, q_n, total_spent, actions, log_densities, probabilities, bell_signals, episode_payoff
 
@@ -89,12 +89,14 @@ def train_model(model, simulate_episode, num_episodes, S0, V0, mu, kappa, theta,
 
         optimizer.zero_grad()
         loss = torch.tensor(0.0, dtype=torch.float32, requires_grad=True)
-        for b in range(batch_size):
-            for log_density in log_densities[:, b]:
-                loss = loss - log_density
-        # loss *= torch.mean(torch.tensor(episode_payoff, dtype=torch.float32, requires_grad=True)) # moyenne des payoffs de chaque batch
-        # moyenne sur b et sur les jours faux
+        loss = loss - log_densities.sum()
+
         # moyenne pour chaque b des days et multiplier par la moyenne des b
+        episode_payoff_tensor = torch.tensor(episode_payoff, dtype=torch.float32, requires_grad=True)
+        mean_days_per_b = torch.mean(episode_payoff_tensor, dim=0)
+        mean_b = torch.mean(mean_days_per_b)
+        loss *= mean_b
+
 
         if episode % 50 == 0:
             print(f"Episode {episode}: Average Episode Payoff {np.mean(episode_payoff)}, Loss {loss}")
