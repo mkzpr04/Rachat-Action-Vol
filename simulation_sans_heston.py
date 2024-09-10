@@ -88,9 +88,6 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, fl
     return S_n, A_n, q_n, total_spent, actions, log_densities, probabilities, bell_signals, episode_payoff
 
 def train_model(model, simulate_episode, num_episodes, S0,V0, mu,kappa, theta, sigma,rho, days, goal, batch_size=2):
-    """if isinstance(model, Net):
-        return 
-    """
     optimizer = optim.Adam(model.parameters(), lr=0.01)
     for episode in tqdm(range(num_episodes)):
         results = simulate_episode(model, S0, V0, mu , kappa, theta, sigma, rho, days, goal, flag=True, batch_size=batch_size)
