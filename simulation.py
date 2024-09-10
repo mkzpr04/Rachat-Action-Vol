@@ -82,7 +82,7 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, nb
     total_spent = np.zeros(nb_paths)
     prices, volatilities = simulate_price_heston(S0, V0, mu, kappa, theta, sigma, rho, days, nb_paths)
     actions, states, log_densities, probabilities = [], [], [], []
-    done, episode_payoff = np.zeros(nb_paths), np.zeros(nb_paths)
+    done, episode_payoff = np.zeros(nb_paths), np.zeros(nb_paths)  
 
     for t in range(days + 1):
         S_tensor_step = torch.tensor(prices[t], dtype=torch.float32)

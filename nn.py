@@ -1,8 +1,6 @@
 import torch
 import torch.nn as nn
 import numpy as np
-from tqdm import tqdm
-import torch.optim as optim
 
 
 enable_cuda = True
@@ -50,9 +48,6 @@ class Net(nn.Module):
         return x.T
 
     def normalize(self, n_plus_one, S_tensor_step, A_tensor_step, q_previous):
-        S_tensor_step = torch.tensor(S_tensor_step, dtype=torch.float32)  # Convertir en tenseur
-        A_tensor_step = torch.tensor(A_tensor_step, dtype=torch.float32)  # Convertir en tenseur
-        q_previous = torch.tensor(q_previous, dtype=torch.float32)        # Convertir en tenseur
         return torch.vstack(
             [
                 torch.full_like(S_tensor_step, (n_plus_one) / self.N - 0.5),
@@ -61,7 +56,7 @@ class Net(nn.Module):
                 q_previous / self.Q - 0.5,
             ]
         ).T
-
+    
     def load_model(self, path):
         self.load_state_dict(torch.load(path))
         self.eval()
