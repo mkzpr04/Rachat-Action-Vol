@@ -27,14 +27,14 @@ class StockNetwork(nn.Module):
         mean, bell = self.forward(state)
         std = (goal / days) * 0.05
 
-        """
+        
         if torch.isnan(mean).any() or torch.isinf(mean).any():
             mean = torch.tensor(0.0)
-        """
+    
         total_stock_target = mean + std * torch.randn_like(mean) # mu + sigma * N(0,1)
         u = np.random.uniform(0, 1, size=bell.shape)
         u = torch.tensor(u, dtype=torch.float32)
-        bell = (u < bell)
+        bell = (u < bell).float()
         
         log_density = -0.5 * torch.log(2 * torch.tensor(np.pi) * (std *std)) - ((total_stock_target - mean) *(total_stock_target - mean)) / (2 * (std *std)) # vraisemblance de la première action mais il mnanque la proba de sonner la cloche
 
@@ -64,17 +64,6 @@ class StockNetwork(nn.Module):
     
     def save_model(self, path):
         torch.save(self.state_dict(), path)
-
-    def prendre_decision(n, S_tensor, A_tensor, q, net):
-            # Normalisation des données et appel du modèle
-            normalized_input = net.normalize(n + 1, S_tensor[n], A_tensor[n], q[n])
-            out = net(normalized_input)
-        
-            # Sortie du modèle
-            nombre_actions = out[0]  # Nombre d'actions à avoir dans le portefeuille à la fin de la journée (n+1)
-            prob_sonner_cloche = out[1]  # Probabilité associée à "sonner la cloche"
-        
-            return nombre_actions, prob_sonner_cloche
         
         
         

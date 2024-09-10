@@ -3,7 +3,7 @@ import torch.nn as nn
 import numpy as np
 
 
-enable_cuda = False
+enable_cuda = True
 n_neurons_per_layer = 512
 n_layers = 5
 

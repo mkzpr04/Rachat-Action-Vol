@@ -20,7 +20,7 @@ def payoff(A_n, total_spent):
 
 def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, flag, batch_size=2):
     q_n = torch.zeros((days+1, batch_size), dtype=torch.float32)
-    q_n[days, :] = goal + 1
+    q_n[days, :] = goal 
     A_n = torch.zeros((days+1, batch_size), dtype=torch.float32)
     actions = torch.zeros((days+1, batch_size), dtype=torch.float32)
     bell_signals = torch.zeros((days+1, batch_size), dtype=torch.float32)
@@ -29,15 +29,15 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, fl
     probabilities = torch.zeros((days+1, batch_size), dtype=torch.float32)
     episode_payoff = torch.zeros(batch_size, dtype=torch.float32)
 
+    if not flag: # lorsqu'on évalue le model
+        np.random.seed(0)
     X = np.random.normal(0, 1, (days, batch_size))
     S_n = simulate_price(X, sigma, S0)
     S_n = torch.tensor(S_n, dtype=torch.float32)
     
-    if not flag: # lorsqu'on évalue le model
-        np.random.seed(0)
 
     for t in range(days):
-        A_n[t, :] = np.mean(S_n[1:t+1, :], axis=0) if t > 0 else S0
+        A_n[t, :] = torch.mean(S_n[1:t+1, :], axis=0) if t > 0 else S0
         if isinstance(model, Net):
             state = model.normalize(t+1 , S_n[t, :], A_n[t, :], q_n[t, :])  
         else: 
@@ -51,34 +51,39 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, fl
             if flag:
                 total_stock_target, bell, log_density, prob = model.sample_action(state_tensor, goal, days)
             else:
-                total_stock_target, bell = model.forward(state_tensor)
+                if isinstance(model, Net):
+                    etat = model.forward(state_tensor)
+                    total_stock_target = etat[0]
+                    bell = etat[1]
+                else:
+                    total_stock_target, bell = model.forward(state_tensor)
 
         # MAJ des états
-        q_n[t+1, :] = total_stock_target * (torch.tensor(goal, dtype=torch.float32)- q_n[t, :]) if t < days - 1 else goal 
+        q_n[t+1,:] = total_stock_target if t < days-1 else goal # * (goal - q_n[t, :]) if t < days - 1 else goal
         v_n = q_n[t+1, :] - q_n[t, :]
-        #v_n = v_n.detach().numpy() if isinstance(v_n, torch.Tensor) else v_n 
         total_spent[t+1, :] = total_spent[t, :] + v_n * S_n[t+1, :]
-        log_densities[t, :] = log_density
-        probabilities[t, :] = np.exp(-prob)
+        log_densities[t, :] = log_density if log_density is not None else 0
+        probabilities[t, :] = prob #np.exp(-prob)
         actions[t, :] = v_n
         bell_signals[t, :] = bell
 
-        condition = (bell_signals[t, :] >= 0.5) & (t >= 19) & (q_n[t+1, :] >= goal) # Condition pour vérifier si le signal de cloche est activé, si t >= 19, et si q_n[t+1, :] est supérieur ou égal à goal
-        if np.any(condition): # Si la condition est remplie pour au moins un batch
+        condition = ((bell_signals[t, :] >= 0.5) & (t >= 19) & (q_n[t, :] >= goal)) | (t+1>=days) # Condition pour vérifier si le signal de cloche est activé, si t >= 19, et si q_n[t+1, :] est supérieur ou égal à goal
+        if condition.any(): # Si la condition est remplie pour au moins un batch
             q_n[t+1:, condition] = q_n[t, condition]
-            not_assigned = np.isnan(episode_payoff[condition]) # Vérifier si episode_payoff n'a pas encore été assigné pour les éléments qui remplissent la condition
-            if np.any(not_assigned):
+            not_assigned = torch.isnan(episode_payoff[condition]) # Vérifier si episode_payoff n'a pas encore été assigné pour les éléments qui remplissent la condition
+            if not_assigned.any():
                 episode_payoff[condition] = payoff(A_n[t, condition], total_spent[t, condition])
+            A_n[days, condition] = torch.mean(S_n[1:days + 1, :], axis=0)[condition]
 
+    
     condition = q_n[days, :] < goal
-    if np.any(condition):
-        A_n[days, condition] = np.mean(S_n[1:days + 1, :], axis=0)[condition]
+    if condition.any():
+        A_n[days, condition] = torch.mean(S_n[1:days + 1, :], axis=0)[condition]
         final_adjustment = goal - q_n[days, condition]
         total_spent[days, condition] += final_adjustment * S_n[days, condition]
         actions[-1, condition] += final_adjustment
         q_n[days, condition] = goal
-
-    episode_payoff = payoff(A_n[days, :], total_spent[days, :])
+        episode_payoff = payoff(A_n[days, :], total_spent[days, :])
 
     return S_n, A_n, q_n, total_spent, actions, log_densities, probabilities, bell_signals, episode_payoff
 
