@@ -55,6 +55,7 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, fl
                     etat = model.forward(state_tensor)
                     total_stock_target = etat[0]
                     bell = etat[1]
+                    print(bell)
                 else:
                     total_stock_target, bell = model.forward(state_tensor)
 
@@ -63,6 +64,7 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, fl
         v_n = q_n[t+1, :] - q_n[t, :]
         total_spent[t+1, :] = total_spent[t, :] + v_n * S_n[t+1, :]
         log_densities[t, :] = log_density if log_density is not None else 0
+        #print(prob)
         probabilities[t, :] = prob #np.exp(-prob)
         actions[t, :] = v_n
         bell_signals[t, :] = bell
