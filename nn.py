@@ -31,10 +31,10 @@ class Net(nn.Module):
         self.__setattr__("fc" + str(_ + 3), nn.Linear(self.n_neurons_per_layer, 2))
         self.scale = nn.Parameter(torch.tensor(0.0, requires_grad=True))
 
-        self.Q = 100
-        self.N = 60
-        self.xi_0 = 0.1**2
-        self.S0 = 100.0
+        self.Q = 20e0
+        self.N = 63
+        self.xi_0 = 0.6**2
+        self.S0 = 45.0
 
     def forward(self, x):
         input = x
