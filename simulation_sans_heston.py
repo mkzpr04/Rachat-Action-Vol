@@ -27,7 +27,8 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, fl
     total_spent = torch.zeros((days+1, batch_size), dtype=torch.float32)
     log_densities = torch.zeros((days+1, batch_size), dtype=torch.float32)
     probabilities = torch.zeros((days+1, batch_size), dtype=torch.float32)
-    episode_payoff = torch.zeros(batch_size, dtype=torch.float32)
+    #episode_payoff = torch.zeros(batch_size, dtype=torch.float32)
+    episode_payoff =torch.full((batch_size,), float('nan'), dtype=torch.float32)
 
     if not flag: # lorsqu'on évalue le model
         np.random.seed(0)
