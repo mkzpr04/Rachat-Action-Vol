@@ -57,9 +57,40 @@ class Net(nn.Module):
             ]
         ).T
     
-    def load_model(self, path):
-        self.load_state_dict(torch.load(path))
+    def load_model(self, path, device="cpu"):
+        self.load_state_dict(torch.load(path, map_location=device))
         self.eval()
     
     def save_model(self, path):
         torch.save(self.state_dict(), path)
+
+
+
+"""
+model = Net()
+#weights_before = {name: param.clone() for name, param in model.named_parameters()}
+
+model.load_model("trained_model.pt")
+
+#weights_after = {name: param.clone() for name, param in model.named_parameters()}
+
+state1 = model.normalize(
+    n_plus_one=torch.tensor(30, dtype=torch.float32),
+    S_tensor_step=torch.tensor(47, dtype=torch.float32),
+    A_tensor_step=torch.tensor(46, dtype=torch.float32),
+    q_previous=torch.tensor(11, dtype=torch.float32)
+)
+actions = model.forward(state1)
+
+
+
+
+
+
+
+
+state2 = torch.tensor([[30, 47, 46, 11]], dtype=torch.float32)
+actions2 = model.forward(state2)
+    
+weights_equal = {name: torch.equal(weights_before[name], weights_after[name]) for name in weights_before}
+print(weights_equal)"""

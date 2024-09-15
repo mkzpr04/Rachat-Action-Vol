@@ -55,7 +55,6 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, fl
                     etat = model.forward(state_tensor)
                     total_stock_target = etat[0]
                     bell = etat[1]
-                    print(bell)
                 else:
                     total_stock_target, bell = model.forward(state_tensor)
 
@@ -69,7 +68,7 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, fl
         actions[t, :] = v_n
         bell_signals[t, :] = bell
 
-        condition = ((bell_signals[t, :] >= 0.5) & (t >= 19) & (q_n[t, :] >= goal)) | (t+1>=days) # Condition pour vérifier si le signal de cloche est activé, si t >= 19, et si q_n[t+1, :] est supérieur ou égal à goal
+        condition = ((bell_signals[t, :] >= 0.5) & (t >= 21) & (q_n[t, :] >= goal)) | (t+1>=days) # Condition pour vérifier si le signal de cloche est activé, si t >= 19, et si q_n[t+1, :] est supérieur ou égal à goal
         if condition.any(): # Si la condition est remplie pour au moins un batch
             q_n[t+1:, condition] = q_n[t, condition]
             not_assigned = torch.isnan(episode_payoff[condition]) # Vérifier si episode_payoff n'a pas encore été assigné pour les éléments qui remplissent la condition
@@ -212,15 +211,17 @@ except KeyError:
     raise ValueError(f"Le modèle '{model_name}' n'est pas reconnu. Assurez-vous que le nom du modèle est correct.")
  
 # Paramètres du modèle
-S0 = 100
+S0 = 45
+sigma = 0.6
+days = 63
+goal = 20
+
 V0 = 0.04  # Volatilité initiale
 mu = 0.1   # Rendement attendu
 kappa = 2.0
 theta = 0.04
-sigma = 2.0
 rho = -0.7
-days = 60
-goal = 100
+
  
 # Choix de l'utilisateur pour charger ou entraîner le modèle
 choice = get_user_choice("Voulez-vous charger un modèle existant (c) ou entraîner un nouveau modèle (e) ? (c/e) : ", ['c', 'e'])
@@ -258,7 +259,7 @@ elif choice == 'e':
  
  
 # Évaluation de la politique
-num_episodes = 50
+num_episodes = 100
 avg_total_spent, avg_total_stocks, avg_A_n, avg_payoff, avg_final_day, avg_actions = evaluate_policy(model, num_episodes, S0,V0, mu,kappa, theta, sigma,rho, days, goal, batch_size=2)
 print(f"\nRésultats de l'évaluation de la politique sur {num_episodes} épisodes :")
 print(f"Total dépensé en moyenne: {avg_total_spent}")
