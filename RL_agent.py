@@ -1,13 +1,11 @@
 import torch
 import torch.nn as nn
 import numpy as np
-import torch.optim as optim
-from tqdm import tqdm
 
 class StockNetwork(nn.Module):
     def __init__(self):
         super().__init__() 
-        self.hidden1 = nn.Linear(9, 128)
+        self.hidden1 = nn.Linear(5, 128)
         self.act1 = nn.ReLU()
         self.hidden2 = nn.Linear(128, 128)
         self.act2 = nn.ReLU()
@@ -29,38 +27,36 @@ class StockNetwork(nn.Module):
         mean, bell = self.forward(state)
         std = (goal / days) * 0.05
 
+        
         if torch.isnan(mean).any() or torch.isinf(mean).any():
             mean = torch.tensor(0.0)
-
-        total_stock_target = mean + std * torch.randn_like(mean) # générer une normale avec numpy
-        u = np.random.uniform(0, 1)
-        print(bell)
-        bell = 1 if u < bell.item() else 0
+    
+        total_stock_target = mean + std * torch.randn_like(mean) # mu + sigma * N(0,1)
+        u = np.random.uniform(0, 1, size=bell.shape)
+        u = torch.tensor(u, dtype=torch.float32)
+        bell = (u < bell).float()
         
         log_density = -0.5 * torch.log(2 * torch.tensor(np.pi) * (std *std)) - ((total_stock_target - mean) *(total_stock_target - mean)) / (2 * (std *std)) # vraisemblance de la première action mais il mnanque la proba de sonner la cloche
-        if log_density.dim() > 1:
-            log_density = log_density.sum()
 
-        prob = 0.5 * (1 + torch.erf((total_stock_target - mean) / (std * torch.sqrt(torch.tensor(2.0))))) # pq on retire la mean?
+        prob = 0.5 * (1 + torch.erf((total_stock_target - mean) / (std * torch.sqrt(torch.tensor(2.0))))) 
 
         # Calcul de la vraisemblance d'avoir sonné la cloche
-        bell_prob = bell * prob + (1 - bell) * (1 - prob)
-        log_density += torch.log(bell_prob)
+        #bell_density = torch.log(1-bell.float())
+
+        #log_density += torch.log(bell_density)
 
         return total_stock_target, bell, log_density, prob
     
     @staticmethod
-    @staticmethod
     def normalize(state, days, goal, S0):
-        t, S_n, A_n, q_n, total_spent = state
-        normalized_state = np.concatenate([
-            np.array([t / days]),  # t normalisé
-            S_n / S0,              # Prix S_n normalisé
-            A_n / S0,              # A_n normalisé
-            q_n / goal,            # Nombre d'actions normalisé
-            total_spent / (S0 * goal)  # Total dépensé normalisé
-            ])
-        return normalized_state
+        t, S_n, A_n, q_n, total_spent = state  # tenseurs
+        return torch.vstack([
+            torch.full_like(S_n, t / days),  # t normalisé
+            S_n / S0,                        # Prix S_n normalisé
+            A_n / S0,                        # A_n normalisé
+            q_n / goal,                      # Nombre d'actions normalisé
+            total_spent / (S0 * goal)        # Total dépensé normalisé
+        ]).T
 
 
     def load_model(self, path):
@@ -69,17 +65,5 @@ class StockNetwork(nn.Module):
     
     def save_model(self, path):
         torch.save(self.state_dict(), path)
+        
 
-    def prendre_decision(n, S_tensor, A_tensor, q, net):
-            # Normalisation des données et appel du modèle
-            normalized_input = net.normalize(n + 1, S_tensor[n], A_tensor[n], q[n])
-            out = net(normalized_input)
-        
-            # Sortie du modèle
-            nombre_actions = out[0]  # Nombre d'actions à avoir dans le portefeuille à la fin de la journée (n+1)
-            prob_sonner_cloche = out[1]  # Probabilité associée à "sonner la cloche"
-        
-            return nombre_actions, prob_sonner_cloche
-        
-        
-        
