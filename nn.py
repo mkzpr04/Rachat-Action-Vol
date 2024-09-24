@@ -26,6 +26,7 @@ class Net(nn.Module):
                 "fc" + str(_ + 2),
                 nn.Linear(self.n_neurons_per_layer, self.n_neurons_per_layer),
             )
+
         self.__setattr__("fc" + str(_ + 3), nn.Linear(self.n_neurons_per_layer, 2))
         self.scale = nn.Parameter(torch.tensor(0.0, requires_grad=True))
 
@@ -33,6 +34,7 @@ class Net(nn.Module):
         self.N = 63
         self.xi_0 = 0.6**2
         self.S0 = 45.0
+        
 
     def forward(self, x):
         input = x
@@ -56,7 +58,6 @@ class Net(nn.Module):
                 q_previous / self.Q - 0.5,
             ]
         ).T
-    
     def load_model(self, path, device="cpu"):
         self.load_state_dict(torch.load(path, map_location=device))
         self.eval()
@@ -64,9 +65,6 @@ class Net(nn.Module):
     def save_model(self, path):
         torch.save(self.state_dict(), path)
 
-
-
-"""
 model = Net()
 #weights_before = {name: param.clone() for name, param in model.named_parameters()}
 
@@ -82,24 +80,12 @@ state1 = model.normalize(
 )
 actions = model.forward(state1)
 
-
-<<<<<<< Updated upstream
-
-
-
-
-
-
-state2 = torch.tensor([[30, 47, 46, 11]], dtype=torch.float32)
-actions2 = model.forward(state2)
-=======
 state = torch.tensor(((23.0), (41.0),( 43.0), (19.0)), dtype=torch.float32)
 print(state, "avant normalize")
 state=model.normalize(23.0, torch.tensor(41.0),torch.tensor( 43.0), torch.tensor(19.0))
 print("après normalize :", state)
 actions = model.forward(state)
 print(actions)
->>>>>>> Stashed changes
     
-weights_equal = {name: torch.equal(weights_before[name], weights_after[name]) for name in weights_before}
-print(weights_equal)"""
+#weights_equal = {name: torch.equal(weights_before[name], weights_after[name]) for name in weights_before}
+#print(weights_equal)
