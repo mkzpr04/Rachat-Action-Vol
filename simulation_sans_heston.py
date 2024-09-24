@@ -25,7 +25,7 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, fl
     bell_signals = torch.zeros((days+1, batch_size), dtype=torch.float32)
     total_spent = torch.zeros((days+1, batch_size), dtype=torch.float32)
     log_densities = torch.zeros((days+1, batch_size), dtype=torch.float32)
-    probabilities = torch.zeros((days+1, batch_size), dtype=torch.float32)
+    #probabilities = torch.zeros((days+1, batch_size), dtype=torch.float32)
     #episode_payoff = torch.zeros(batch_size, dtype=torch.float32)
     episode_payoff =torch.full((batch_size,), float('nan'), dtype=torch.float32)
 
@@ -44,11 +44,11 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, fl
         state_tensor = torch.tensor(state, dtype=torch.float32)
 
         log_density = None
-        prob = 0
+        #prob = 0
 
         with torch.no_grad():
             if flag:
-                total_stock_target, bell, log_density, prob = model.sample_action(state_tensor, goal, days)
+                total_stock_target, bell, log_density = model.sample_action(state_tensor, goal, days)
             else:
                 if isinstance(model, Net):
                     etat = model.forward(state_tensor)
@@ -63,7 +63,7 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, fl
         total_spent[t+1, :] = total_spent[t, :] + v_n * S_n[t+1, :]
         log_densities[t, :] = log_density if log_density is not None else 0
         #print(prob)
-        probabilities[t, :] = prob #np.exp(-prob)
+        #probabilities[t, :] = prob #np.exp(-prob)
         actions[t, :] = v_n
         bell_signals[t, :] = bell
         condition = ((bell_signals[t, :] >= 0.5) & (t >= 21) & (q_n[t, :] >= goal)) | (t+1>=days) # Condition pour vérifier si le signal de cloche est activé, si t >= 19, et si q_n[t+1, :] est supérieur ou égal à goal
@@ -84,13 +84,14 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, fl
         q_n[days, condition] = goal
         episode_payoff = payoff(A_n[days, :], total_spent[days, :])
 
-    return S_n, A_n, q_n, total_spent, actions, log_densities, probabilities, bell_signals, episode_payoff
+    return S_n, A_n, q_n, total_spent, actions, log_densities, bell_signals, episode_payoff
+
 
 def train_model(model, simulate_episode, num_episodes, S0,V0, mu,kappa, theta, sigma,rho, days, goal, batch_size=2):
     optimizer = optim.Adam(model.parameters(), lr=0.01)
     for episode in tqdm(range(num_episodes)):
         results = simulate_episode(model, S0, V0, mu , kappa, theta, sigma, rho, days, goal, flag=True, batch_size=batch_size)
-        S_n, A_n, q_n, total_spent, actions, log_densities, probabilities, bell_signals, episode_payoff = results
+        S_n, A_n, q_n, total_spent, actions, log_densities, bell_signals, episode_payoff = results
 
         optimizer.zero_grad()
         loss = torch.tensor(0.0, dtype=torch.float32, requires_grad=True)
@@ -113,7 +114,8 @@ def evaluate_policy(model, num_episodes, S0,V0, mu,kappa, theta, sigma,rho, days
 
     for _ in range(num_episodes):
         results = simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, flag=False, batch_size=batch_size)
-        S_n, A_n, q_n, total_spent, actions, log_densities, probabilities, bell_signals, episode_payoff = results
+
+        S_n, A_n, q_n, total_spent, actions, log_densities, bell_signals, episode_payoff = results
         final_day = (bell_signals > 1).nonzero(as_tuple=True)[0][0]
         total_spent_single = total_spent[final_day, 0]
         total_stocks = q_n[final_day, 0]
@@ -124,16 +126,17 @@ def evaluate_policy(model, num_episodes, S0,V0, mu,kappa, theta, sigma,rho, days
         final_day_list.append(final_day)
         actions_list.append(actions[:, 0])
         
- 
+
+    max_len_actions = max([len(a) for a in actions_list])
+    padded_actions = np.array([np.pad(a, (0, max_len_actions - len(a)), 'constant', constant_values=0) for a in actions_list])
+    avg_actions = np.mean(padded_actions, axis=0)    
+
     avg_total_spent = np.mean(total_spent_list)
     avg_total_stocks = np.mean(total_stocks_list)
     avg_A_n = np.mean(A_n_list)
     avg_payoff = np.mean(payoff_list)
     avg_final_day = np.mean(final_day_list)
-    max_len_actions = max([len(a) for a in actions_list])
-    padded_actions = np.array([np.pad(a, (0, max_len_actions - len(a)), 'constant', constant_values=0) for a in actions_list])
-    avg_actions = np.mean(padded_actions, axis=0)   
- 
+
 
     return avg_total_spent, avg_total_stocks, avg_A_n, avg_payoff, avg_final_day, avg_actions
 
@@ -174,12 +177,14 @@ def plot_episode(S_n, A_n, q_n, cloche_n):
     ax1.plot(S_n, label="S_n (Prix de l'action au jour n)", color="blue")
     ax1.plot(A_n, label="A_n (Prix moyen des actions aux jours n)", color="green")
     ax1.tick_params(axis='y', labelcolor='black')
+
     verification=True
     for i, cloche_value in enumerate(cloche_n): 
         
         if float(cloche_value.item()) >= 1 and verification: 
             ax1.axvline(x=i, color="purple", linestyle='--', label="cloche_n = 1" if i == 0 else "")
             verification=False
+
     ax2 = ax1.twinx()  
     ax2.set_ylabel('q_n en valeur réelle', color='red')
     ax2.plot(q_n, label="q_n (Quantité totale d'actions au jour n)", color="red", linestyle='-')
@@ -272,7 +277,7 @@ print(f"Jour final moyen: {avg_final_day}")
 print(f"Actions moyennes par jour: {avg_actions}")
  
 # Simulation d'un épisode et exportation des résultats
-S_n, A_n, q_n, total_spent, actions, log_densities, probabilities, cloche_n, episode_payoff = simulate_episode(
+S_n, A_n, q_n, total_spent, actions, log_densities, cloche_n, episode_payoff = simulate_episode(
     model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, flag=False, batch_size=2
 )
 

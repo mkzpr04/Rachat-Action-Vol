@@ -1,6 +1,6 @@
-import torch
+import torch 
 import torch.nn as nn
-import numpy as np
+import numpy as np 
 
 class StockNetwork(nn.Module):
     def __init__(self):
@@ -16,36 +16,37 @@ class StockNetwork(nn.Module):
         self.act_output = nn.Sigmoid()
 
     def forward(self, x):
-        x = self.act1(self.hidden1(x))
-        x = self.act2(self.hidden2(x))
-        x = self.act3(self.hidden3(x))
-        mean = self.mean_output(x)
-        bell = self.act_output(self.bell_output(x))
-        return mean, bell
-
+            x = self.act1(self.hidden1(x))
+            x = self.act2(self.hidden2(x))
+            x = self.act3(self.hidden3(x))
+            mean = self.mean_output(x)
+            bell_param = self.act_output(self.bell_output(x))
+            return mean, bell_param
+    
     def sample_action(self, state, goal, days):
-        mean, bell = self.forward(state)
+        mean, bell_param = self.forward(state)
         std = (goal / days) * 0.05
-
+        # Loi normale de paramètre mean,std
+        # Loi de bernoulli de paramètre bell_param
         
         if torch.isnan(mean).any() or torch.isinf(mean).any():
             mean = torch.tensor(0.0)
     
         total_stock_target = mean + std * torch.randn_like(mean) # mu + sigma * N(0,1)
-        u = np.random.uniform(0, 1, size=bell.shape)
+        u = np.random.uniform(0, 1, size=bell_param.shape)
         u = torch.tensor(u, dtype=torch.float32)
-        bell = (u < bell).float() # ne pas écraser; garder le paramètre bell d'un côté et la réalisation de bernouilli
+        bell = (u < bell_param).float()
+
+        pdf_total_stock_target=(1 / (torch.sqrt(2 * np.pi) * std)) * torch.exp(-0.5 * ((total_stock_target - mean) / std) ** 2)
+        pdf_bell=bell_param if bell==1 else 1-bell_param
         
-        log_density = -0.5 * torch.log(2 * torch.tensor(np.pi) * (std *std)) - ((total_stock_target - mean) *(total_stock_target - mean)) / (2 * (std *std)) # vraisemblance de la première action mais il mnanque la proba de sonner la cloche
+        likelihood=pdf_bell*pdf_total_stock_target  #produit car hypothèse d'indépendance
+        
+        log_density=torch.log(likelihood) #en réalité c'est la log_likelihood mais en 1D c'est la meme chose donc on la nomme comme ca pour enlever toute ambiguité lorque l'on va utiliser la policy gradient method 
 
-        prob = 0.5 * (1 + torch.erf((total_stock_target - mean) / (std * torch.sqrt(torch.tensor(2.0))))) 
+    
+        return total_stock_target, bell, log_density
 
-        # Calcul de la vraisemblance d'avoir sonné la cloche
-        #bell_density = torch.log(-log(1)) 0 
-
-        #log_density += torch.log(bell_density)
-
-        return total_stock_target, bell, log_density, prob
     
     @staticmethod
     def normalize(state, days, goal, S0):
