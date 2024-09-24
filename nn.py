@@ -83,6 +83,7 @@ state1 = model.normalize(
 actions = model.forward(state1)
 
 
+<<<<<<< Updated upstream
 
 
 
@@ -91,6 +92,14 @@ actions = model.forward(state1)
 
 state2 = torch.tensor([[30, 47, 46, 11]], dtype=torch.float32)
 actions2 = model.forward(state2)
+=======
+state = torch.tensor(((23.0), (41.0),( 43.0), (19.0)), dtype=torch.float32)
+print(state, "avant normalize")
+state=model.normalize(23.0, torch.tensor(41.0),torch.tensor( 43.0), torch.tensor(19.0))
+print("après normalize :", state)
+actions = model.forward(state)
+print(actions)
+>>>>>>> Stashed changes
     
 weights_equal = {name: torch.equal(weights_before[name], weights_after[name]) for name in weights_before}
 print(weights_equal)"""

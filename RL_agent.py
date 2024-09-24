@@ -34,15 +34,16 @@ class StockNetwork(nn.Module):
         total_stock_target = mean + std * torch.randn_like(mean) # mu + sigma * N(0,1)
         u = np.random.uniform(0, 1, size=bell.shape)
         u = torch.tensor(u, dtype=torch.float32)
-        bell = (u < bell).float()
+        bell = (u < bell).float() # ne pas écraser; garder le paramètre bell d'un côté et la réalisation de bernouilli
         
         log_density = -0.5 * torch.log(2 * torch.tensor(np.pi) * (std *std)) - ((total_stock_target - mean) *(total_stock_target - mean)) / (2 * (std *std)) # vraisemblance de la première action mais il mnanque la proba de sonner la cloche
 
         prob = 0.5 * (1 + torch.erf((total_stock_target - mean) / (std * torch.sqrt(torch.tensor(2.0))))) 
 
         # Calcul de la vraisemblance d'avoir sonné la cloche
-        bell_prob = bell.float() * prob + (1 - bell.float()) * (1 - prob)
-        log_density += torch.log(bell_prob)
+        #bell_density = torch.log(-log(1)) 0 
+
+        #log_density += torch.log(bell_density)
 
         return total_stock_target, bell, log_density, prob
     
