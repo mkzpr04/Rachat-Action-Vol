@@ -15,7 +15,7 @@ def simulate_price(X, sigma, S0):
     return S_n
 
 def payoff(A_n, total_spent):
-    return 20 * A_n - total_spent
+    return goal * A_n - total_spent
 
 def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, flag, batch_size=2):
     q_n = torch.zeros((days+1, batch_size), dtype=torch.float32)
@@ -25,7 +25,6 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, fl
     bell_signals = torch.zeros((days+1, batch_size), dtype=torch.float32)
     total_spent = torch.zeros((days+1, batch_size), dtype=torch.float32)
     log_densities = torch.zeros((days+1, batch_size), dtype=torch.float32)
-    #probabilities = torch.zeros((days+1, batch_size), dtype=torch.float32)
     #episode_payoff = torch.zeros(batch_size, dtype=torch.float32)
     episode_payoff =torch.full((batch_size,), float('nan'), dtype=torch.float32)
 
@@ -44,7 +43,6 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, fl
         state_tensor = torch.tensor(state, dtype=torch.float32)
 
         log_density = None
-        #prob = 0
 
         with torch.no_grad():
             if flag:
