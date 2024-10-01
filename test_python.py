@@ -101,3 +101,36 @@ u = np.random.uniform(0, 1, size=bell.shape)
 u = torch.tensor(u, dtype=torch.float32)
 bell = (u < bell).float()
 print(bell)
+
+
+A = torch.tensor([[-0.0223], [2]])
+
+# Utiliser .squeeze() pour supprimer les dimensions de taille 1
+A_squeezed = A.squeeze()
+
+print(A_squeezed)
+
+
+mean = torch.tensor([[1.0], [2.0]], dtype=torch.float32)
+std = torch.tensor([[0.5, 0.5]], dtype=torch.float32)
+total_stock_target = torch.tensor([1.5, 2.5], dtype=torch.float32)
+
+# Vérifier les valeurs des variables
+print("mean:", mean)
+print("std:", std)
+print("total_stock_target:", total_stock_target)
+
+# Calculer pdf_total_stock_target
+two_pi = torch.tensor(2 * np.pi, dtype=torch.float32)
+pdf_total_stock_target = (1 / (torch.sqrt(two_pi) * std)) * torch.exp(-0.5 * ((total_stock_target - mean) / std) ** 2)
+
+# Vérifier la valeur de pdf_total_stock_target
+print("pdf_total_stock_target:", pdf_total_stock_target)
+
+# Calculer log_density
+log_density = torch.log(pdf_total_stock_target)
+print("log_density:", log_density)
+
+# Exemple de produit des log-densités pour chaque batch
+log_density_product = log_density[0] * log_density[1]
+print("log_density_product:", log_density_product)

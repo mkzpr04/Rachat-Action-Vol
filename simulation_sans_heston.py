@@ -55,13 +55,13 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, fl
                 else:
                     total_stock_target, bell = model.forward(state_tensor)
 
+                    
+
         # MAJ des états
         q_n[t+1,:] = total_stock_target if t < days-1 else goal # * (goal - q_n[t, :]) if t < days - 1 else goal
         v_n = q_n[t+1, :] - q_n[t, :]
         total_spent[t+1, :] = total_spent[t, :] + v_n * S_n[t+1, :]
         log_densities[t, :] = log_density if log_density is not None else 0
-        #print(prob)
-        #probabilities[t, :] = prob #np.exp(-prob)
         actions[t, :] = v_n
         bell_signals[t, :] = bell
         condition = ((bell_signals[t, :] >= 0.5) & (t >= 21) & (q_n[t, :] >= goal)) | (t+1>=days) # Condition pour vérifier si le signal de cloche est activé, si t >= 19, et si q_n[t+1, :] est supérieur ou égal à goal
@@ -85,22 +85,25 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, fl
     return S_n, A_n, q_n, total_spent, actions, log_densities, bell_signals, episode_payoff
 
 
-def train_model(model, simulate_episode, num_episodes, S0,V0, mu,kappa, theta, sigma,rho, days, goal, batch_size=2):
+def train_model(model, simulate_episode, num_episodes, S0, V0, mu, kappa, theta, sigma, rho, days, goal, batch_size=2):
     optimizer = optim.Adam(model.parameters(), lr=0.01)
+    
     for episode in tqdm(range(num_episodes)):
-        results = simulate_episode(model, S0, V0, mu , kappa, theta, sigma, rho, days, goal, flag=True, batch_size=batch_size)
-        S_n, A_n, q_n, total_spent, actions, log_densities, bell_signals, episode_payoff = results
-
+        S_n, A_n, q_n, total_spent, actions, log_densities, bell_signals, episode_payoff = simulate_episode(
+            model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, flag=True, batch_size=batch_size
+        )
+        episode_payoff = torch.tensor(episode_payoff, dtype=torch.float32, requires_grad=True)
+        
         optimizer.zero_grad()
-        loss = torch.tensor(0.0, dtype=torch.float32, requires_grad=True)
-        loss = loss - torch.sum(log_densities)
-        loss *= torch.mean(episode_payoff)
+        log_density_sum = log_densities.sum(dim=0)
+        loss = -(log_density_sum * episode_payoff).mean()
 
         if episode % 50 == 0:
-            print(f"Episode {episode}: Average Episode Payoff {np.mean(episode_payoff)}, Loss {loss.item()}")
+            print(f"Episode {episode}: Average Episode Payoff {torch.mean(episode_payoff)}, Loss {loss.item()}")
 
         loss.backward()
         optimizer.step()
+
 
 def evaluate_policy(model, num_episodes, S0,V0, mu,kappa, theta, sigma,rho, days, goal, batch_size=2): 
     total_spent_list = []

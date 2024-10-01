@@ -25,25 +25,39 @@ class StockNetwork(nn.Module):
     
     def sample_action(self, state, goal, days):
         mean, bell_param = self.forward(state)
+        mean = torch.tensor(mean, dtype=torch.float32, requires_grad=True)
+        mean = mean.squeeze()
         std = (goal / days) * 0.05
+        std = torch.tensor(std, dtype=torch.float32, requires_grad=True)
         # Loi normale de paramètre mean,std
         # Loi de bernoulli de paramètre bell_param
-        
         if torch.isnan(mean).any() or torch.isinf(mean).any():
-            mean = torch.tensor(0.0)
+            mean = torch.tensor(0.0, dtype=torch.float32, requires_grad=True)
     
         total_stock_target = mean + std * torch.randn_like(mean) # mu + sigma * N(0,1)
+        total_stock_target = total_stock_target.squeeze()
         u = np.random.uniform(0, 1, size=bell_param.shape)
-        u = torch.tensor(u, dtype=torch.float32)
-        bell = (u < bell_param).float()
+        u = torch.tensor(u, dtype=torch.float32, requires_grad=True)
+        bell = (u < bell_param).float().squeeze()
+        bell_param = bell_param.squeeze()
 
-        pdf_total_stock_target=(1 / (torch.sqrt(2 * np.pi) * std)) * torch.exp(-0.5 * ((total_stock_target - mean) / std) ** 2)
-        pdf_bell=bell_param if bell==1 else 1-bell_param
+
+        two_pi = torch.tensor(2 * np.pi, dtype=torch.float32, requires_grad=True)
+        pdf_total_stock_target=(1 / (torch.sqrt(two_pi) *std))* torch.exp(-0.5 * ((total_stock_target - mean) / std) ** 2)
+        pdf_bell = torch.where(bell == 1, bell_param, 1 - bell_param) # si bell=1 alors on prend bell_param sinon on prend 1-bell_param
+
         
         likelihood=pdf_bell*pdf_total_stock_target  #produit car hypothèse d'indépendance
         
         log_density=torch.log(likelihood) #en réalité c'est la log_likelihood mais en 1D c'est la meme chose donc on la nomme comme ca pour enlever toute ambiguité lorque l'on va utiliser la policy gradient method 
+    
 
+        """
+        on peut aussi faire:
+        log_stock_purchase = -0.5 * ((stock_purchase - mean) / std) ** 2 - torch.log(std * torch.sqrt(2 * torch.pi))
+        log_bell = bell * torch.log(bell_param) + (1 - bell) * torch.log(1 - bell_param)
+        log_density = log_bell + log_stock_purchase
+        """
     
         return total_stock_target, bell, log_density
 
