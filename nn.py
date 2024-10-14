@@ -65,6 +65,8 @@ class Net(nn.Module):
     def save_model(self, path):
         torch.save(self.state_dict(), path)
 
+
+"""
 model = Net()
 #weights_before = {name: param.clone() for name, param in model.named_parameters()}
 
@@ -89,3 +91,4 @@ print(actions)
     
 #weights_equal = {name: torch.equal(weights_before[name], weights_after[name]) for name in weights_before}
 #print(weights_equal)
+"""

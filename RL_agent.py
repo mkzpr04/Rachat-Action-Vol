@@ -29,8 +29,6 @@ class StockNetwork(nn.Module):
         mean = mean.squeeze()
         std = (goal / days) * 0.05
         std = torch.tensor(std, dtype=torch.float32, requires_grad=True)
-        # Loi normale de paramètre mean,std
-        # Loi de bernoulli de paramètre bell_param
         if torch.isnan(mean).any() or torch.isinf(mean).any():
             mean = torch.tensor(0.0, dtype=torch.float32, requires_grad=True)
     
@@ -44,12 +42,12 @@ class StockNetwork(nn.Module):
 
         two_pi = torch.tensor(2 * np.pi, dtype=torch.float32, requires_grad=True)
         pdf_total_stock_target=(1 / (torch.sqrt(two_pi) *std))* torch.exp(-0.5 * ((total_stock_target - mean) / std) ** 2)
-        pdf_bell = torch.where(bell == 1, bell_param, 1 - bell_param) # si bell=1 alors on prend bell_param sinon on prend 1-bell_param
-
+        pdf_bell = torch.where(bell == 1, bell_param, 1 - bell_param) 
+    
         
-        likelihood=pdf_bell*pdf_total_stock_target  #produit car hypothèse d'indépendance
+        likelihood=pdf_bell*pdf_total_stock_target 
         
-        log_density=torch.log(likelihood) #en réalité c'est la log_likelihood mais en 1D c'est la meme chose donc on la nomme comme ca pour enlever toute ambiguité lorque l'on va utiliser la policy gradient method 
+        log_density=torch.log(likelihood) 
     
 
         """

@@ -17,6 +17,9 @@ def simulate_price(X, sigma, S0):
 def payoff(A_n, total_spent):
     return goal * A_n - total_spent
 
+def calculate_condition(bell_signals, q_n, t, jour_cloche, goal, days):
+    return ((bell_signals[t, :] >= 0.5) & (t+1 >= jour_cloche) & (q_n[t, :] >= goal)) | (t+1 >= days)
+
 def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, flag, batch_size=2):
     q_n = torch.zeros((days+1, batch_size), dtype=torch.float32)
     q_n[days, :] = goal 
@@ -40,20 +43,22 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, fl
             state = model.normalize(t+1 , S_n[t, :], A_n[t, :], q_n[t, :])  
         else: 
             state = model.normalize((t, S_n[t, :], A_n[t, :], q_n[t, :], total_spent[t, :]), days, goal, S0)
-        state_tensor = torch.tensor(state, dtype=torch.float32)
 
         log_density = None
 
         with torch.no_grad():
             if flag:
-                total_stock_target, bell, log_density = model.sample_action(state_tensor, goal, days)
+                total_stock_target, bell, log_density = model.sample_action(state, goal, days)
             else:
                 if isinstance(model, Net):
-                    etat = model.forward(state_tensor)
+                    etat = model.forward(state)
                     total_stock_target = etat[0]
                     bell = etat[1]
                 else:
-                    total_stock_target, bell = model.forward(state_tensor)
+                    etat = model.forward(state)
+                    etat = torch.stack(etat, dim=0).squeeze().T
+                    total_stock_target = etat[0]
+                    bell = etat[1]
 
                     
 
@@ -64,21 +69,22 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, fl
         log_densities[t, :] = log_density if log_density is not None else 0
         actions[t, :] = v_n
         bell_signals[t, :] = bell
-        condition = ((bell_signals[t, :] >= 0.5) & (t >= 21) & (q_n[t, :] >= goal)) | (t+1>=days) # Condition pour vérifier si le signal de cloche est activé, si t >= 19, et si q_n[t+1, :] est supérieur ou égal à goal
+        condition = calculate_condition(bell_signals, q_n, t, jour_cloche, goal, days)
         if condition.any(): # Si la condition est remplie pour au moins un batch
             bell_signals[t, :]=bell_signals[t, :]+1
             q_n[t+1:, condition] = q_n[t, condition]
             not_assigned = torch.isnan(episode_payoff)
-            episode_payoff[not_assigned] = payoff(A_n[t, not_assigned], total_spent[t, not_assigned])
-            A_n[days, condition] = torch.mean(S_n[1:days + 1, :], axis=0)[condition]
+            A_n[t+1, not_assigned] = torch.mean(S_n[1:t+2, :], axis=0)[not_assigned]
+            episode_payoff[not_assigned] = payoff(A_n[t+1, not_assigned], total_spent[t+1, not_assigned])
+            A_n[days, condition] = A_n[t+1, condition]
 
     
     condition = q_n[days, :] < goal
     if condition.any():
         A_n[days, condition] = torch.mean(S_n[1:days + 1, :], axis=0)[condition]
         final_adjustment = goal - q_n[days, condition]
-        total_spent[days, condition] += final_adjustment * S_n[days, condition]
-        actions[-1, condition] += final_adjustment
+        total_spent[days, condition] = total_spent[days-1,condition] + final_adjustment * S_n[days, condition]
+        actions[-1, condition] = final_adjustment
         q_n[days, condition] = goal
         episode_payoff = payoff(A_n[days, :], total_spent[days, :])
 
@@ -93,7 +99,6 @@ def train_model(model, simulate_episode, num_episodes, S0, V0, mu, kappa, theta,
             model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, flag=True, batch_size=batch_size
         )
         episode_payoff = torch.tensor(episode_payoff, dtype=torch.float32, requires_grad=True)
-        
         optimizer.zero_grad()
         log_density_sum = log_densities.sum(dim=0)
         loss = -(log_density_sum * episode_payoff).mean()
@@ -104,8 +109,7 @@ def train_model(model, simulate_episode, num_episodes, S0, V0, mu, kappa, theta,
         loss.backward()
         optimizer.step()
 
-
-def evaluate_policy(model, num_episodes, S0,V0, mu,kappa, theta, sigma,rho, days, goal, batch_size=2): 
+def evaluate_policy(model, num_episodes, S0, V0, mu, kappa, theta, sigma, rho, days, goal, batch_size=2):
     total_spent_list = []
     total_stocks_list = []
     A_n_list = []
@@ -115,29 +119,35 @@ def evaluate_policy(model, num_episodes, S0,V0, mu,kappa, theta, sigma,rho, days
 
     for _ in range(num_episodes):
         results = simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, flag=False, batch_size=batch_size)
-
         S_n, A_n, q_n, total_spent, actions, log_densities, bell_signals, episode_payoff = results
-        final_day = (bell_signals > 1).nonzero(as_tuple=True)[0][0]
-        total_spent_single = total_spent[final_day, 0]
-        total_stocks = q_n[final_day, 0]
-        total_spent_list.append(total_spent_single)
-        total_stocks_list.append(total_stocks)
-        A_n_list.append(A_n[final_day, 0]) 
+        
+        # Trouver le dernier jour où toutes les conditions sont remplies
+        final_day = None
+        for t in range(days):
+            condition = calculate_condition(bell_signals, q_n, t, jour_cloche, goal, days)
+            if (condition & (bell_signals > 1)).any():
+                final_day = (condition & (bell_signals > 1)).nonzero(as_tuple=True)[0][-1]
+                break
+        
+        if final_day is None:
+            final_day = days #si aucune condition remplie on prend le dernier jour
+
+        total_spent_list.append(total_spent[final_day, 0])
+        total_stocks_list.append(q_n[final_day, 0])
+        A_n_list.append(A_n[final_day, 0])
         payoff_list.append(episode_payoff[0])
         final_day_list.append(final_day)
         actions_list.append(actions[:, 0])
-        
 
-    max_len_actions = max([len(a) for a in actions_list])
+    max_len_actions = max(len(a) for a in actions_list)
     padded_actions = np.array([np.pad(a, (0, max_len_actions - len(a)), 'constant', constant_values=0) for a in actions_list])
-    avg_actions = np.mean(padded_actions, axis=0)    
+    avg_actions = np.mean(padded_actions, axis=0)
 
     avg_total_spent = np.mean(total_spent_list)
     avg_total_stocks = np.mean(total_stocks_list)
     avg_A_n = np.mean(A_n_list)
     avg_payoff = np.mean(payoff_list)
     avg_final_day = np.mean(final_day_list)
-
 
     return avg_total_spent, avg_total_stocks, avg_A_n, avg_payoff, avg_final_day, avg_actions
 
@@ -223,6 +233,7 @@ S0 = 45
 sigma = 0.6
 days = 63
 goal = 20
+jour_cloche = 22
 
 V0 = 0.04  # Volatilité initiale
 mu = 0.1   # Rendement attendu
