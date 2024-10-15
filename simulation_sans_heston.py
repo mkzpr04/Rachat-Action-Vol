@@ -100,7 +100,9 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, fl
         total_spent[days, condition] = total_spent[days-1,condition] + final_adjustment * S_n[days, condition]
         actions[-1, condition] = final_adjustment
         q_n[days, condition] = goal
-        episode_payoff = payoff(A_n[days, :], total_spent[days, :])
+        liste_bell=torch.zeros(days+1, batch_size, dtype=torch.float32)
+        liste_bell[days]=1
+        episode_payoff = recursive_payoff(A_n,total_spent,liste_bell,goal,days)
 
     return S_n, A_n, q_n, total_spent, actions, log_densities, bell_signals, episode_payoff
 
