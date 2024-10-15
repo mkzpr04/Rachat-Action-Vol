@@ -3,19 +3,25 @@ import torch.nn as nn
 import numpy as np
 
 class StockNetwork(nn.Module):
-    def __init__(self):
+    def __init__(self, goal):
         super().__init__() 
-        self.hidden1 = nn.Linear(5, 128)
+        self.hidden1 = nn.Linear(5, 512)
         self.act1 = nn.ReLU()
-        self.hidden2 = nn.Linear(128, 128)
+        self.hidden2 = nn.Linear(512, 512)
         self.act2 = nn.ReLU()
-        self.hidden3 = nn.Linear(128, 128)
+        self.hidden3 = nn.Linear(512, 512)
         self.act3 = nn.ReLU()
-        self.mean_output = nn.Linear(128, 1)
-        self.bell_output = nn.Linear(128, 1)
+        self.hidden4 = nn.Linear(512, 512)
+        self.act4 = nn.ReLU()
+        self.hidden5 = nn.Linear(512, 512)
+        self.act5 = nn.ReLU()
+        self.mean_output = nn.Linear(512, 1)
+        self.bell_output = nn.Linear(512, 1)
         self.act_output = nn.Sigmoid()
+        self.Q = goal
 
     def forward(self, x):
+<<<<<<< Updated upstream
         x = self.act1(self.hidden1(x))
         x = self.act2(self.hidden2(x))
         x = self.act3(self.hidden3(x))
@@ -35,10 +41,50 @@ class StockNetwork(nn.Module):
         u = np.random.uniform(0, 1, size=bell.shape)
         u = torch.tensor(u, dtype=torch.float32)
         bell = (u < bell).float()
+=======
+            input = x
+            x = self.act1(self.hidden1(x))
+            x = self.act2(self.hidden2(x))
+            x = self.act3(self.hidden3(x))
+            x = self.act4(self.hidden4(x))
+            x = self.act5(self.hidden5(x))
+            mean = torch.minimum( torch.maximum ((self.mean_output(x).squeeze() + input[:,3]) * self.Q, torch.tensor(0)), torch.tensor(self.Q))
+            bell_param = self.act_output(self.bell_output(x)).squeeze()
+            return mean, bell_param
+    
+    def sample_action(self, state, goal, days):
+        mean, bell_param = self.forward(state)
+        mean = torch.tensor(mean, dtype=torch.float32, requires_grad=True)
+        std = (goal / days) * 0.05
+        std = torch.tensor(std, dtype=torch.float32, requires_grad=True)
+        """if torch.isnan(mean).any() or torch.isinf(mean).any():
+            mean = torch.tensor(0.0, dtype=torch.float32, requires_grad=True)"""
+    
+        total_stock_target = mean + std * torch.randn_like(mean) # mu + sigma * N(0,1)
+        u = np.random.uniform(0, 1, size=bell_param.shape)
+        u = torch.tensor(u, dtype=torch.float32, requires_grad=True)
+        bell = (u < bell_param).float()
+
+
+        two_pi = torch.tensor(2 * np.pi, dtype=torch.float32, requires_grad=True)
+        pdf_total_stock_target=(1 / (torch.sqrt(two_pi) *std))* torch.exp(-0.5 * ((total_stock_target - mean) / std) ** 2)
+        pdf_bell = torch.where(bell == 1, bell_param, 1 - bell_param) 
+    
+>>>>>>> Stashed changes
         
         log_density = -0.5 * torch.log(2 * torch.tensor(np.pi) * (std *std)) - ((total_stock_target - mean) *(total_stock_target - mean)) / (2 * (std *std)) # vraisemblance de la première action mais il mnanque la proba de sonner la cloche
 
+<<<<<<< Updated upstream
         prob = 0.5 * (1 + torch.erf((total_stock_target - mean) / (std * torch.sqrt(torch.tensor(2.0))))) 
+=======
+        """
+        log_stock_purchase = -0.5 * ((stock_purchase - mean) / std) ** 2 - torch.log(std * torch.sqrt(2 * torch.pi))
+        log_bell = bell * torch.log(bell_param) + (1 - bell) * torch.log(1 - bell_param)
+        log_density = log_bell + log_stock_purchase
+        """
+    
+        return total_stock_target, bell, log_density
+>>>>>>> Stashed changes
 
         # Calcul de la vraisemblance d'avoir sonné la cloche
         bell_prob = bell.float() * prob + (1 - bell.float()) * (1 - prob)

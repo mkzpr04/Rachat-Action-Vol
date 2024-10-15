@@ -16,7 +16,14 @@ def simulate_price(X, sigma, S0):
     return S_n
 
 def payoff(A_n, total_spent):
+<<<<<<< Updated upstream
     return 100 * A_n - total_spent
+=======
+    return goal * A_n - total_spent
+
+def calculate_condition(bell_signals, q_n, t, jour_cloche, goal, days):
+    return ((bell_signals[t, :] >= 0.5) & (t >= jour_cloche) & (q_n[t, :] >= goal)) | (t+1 >= days)
+>>>>>>> Stashed changes
 
 def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, flag, batch_size=2):
     q_n = torch.zeros((days+1, batch_size), dtype=torch.float32)
@@ -45,8 +52,11 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, fl
         state_tensor = torch.tensor(state, dtype=torch.float32)
 
         log_density = None
+<<<<<<< Updated upstream
         prob = 0
 
+=======
+>>>>>>> Stashed changes
         with torch.no_grad():
             if flag:
                 total_stock_target, bell, log_density, prob = model.sample_action(state_tensor, goal, days)
@@ -56,6 +66,7 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, fl
                     total_stock_target = etat[0]
                     bell = etat[1]
                 else:
+<<<<<<< Updated upstream
                     total_stock_target, bell = model.forward(state_tensor)
 
         # MAJ des états
@@ -74,11 +85,32 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, fl
             if not_assigned.any():
                 episode_payoff[condition] = payoff(A_n[t, condition], total_spent[t, condition])
             A_n[days, condition] = torch.mean(S_n[1:days + 1, :], axis=0)[condition]
+=======
+                    etat = model.forward(state)
+                    total_stock_target = etat[0]
+                    bell = etat[1]
 
-    
+        condition = calculate_condition(bell_signals, q_n, t, jour_cloche, goal, days)
+        if condition.any(): # Si la condition est remplie pour au moins un batch
+            bell_signals[t, condition]=bell_signals[t, condition]+1
+            q_n[t+1:, condition] = q_n[t, condition]
+            not_assigned = torch.isnan(episode_payoff)
+            #A_n[t+1, not_assigned] = torch.mean(S_n[1:t+2, :], axis=0)[not_assigned]
+            episode_payoff[not_assigned] = payoff(A_n[t, not_assigned], total_spent[t, not_assigned])
+            A_n[days, condition] = A_n[t, condition]
+        else:
+            q_n[t+1,:] = total_stock_target if t < days-1 else goal 
+            v_n = q_n[t+1, :] - q_n[t, :]
+            total_spent[t+1, :] = total_spent[t, :] + v_n * S_n[t+1, :]
+            log_densities[t+1, :] = log_density if log_density is not None else 0
+            actions[t, :] = v_n
+            bell_signals[t+1, :] = bell
+            
+>>>>>>> Stashed changes
+
     condition = q_n[days, :] < goal
     if condition.any():
-        A_n[days, condition] = torch.mean(S_n[1:days + 1, :], axis=0)[condition]
+        A_n[days, condition] = torch.mean(S_n[1:days+1, :], axis=0)[condition]
         final_adjustment = goal - q_n[days, condition]
         total_spent[days, condition] += final_adjustment * S_n[days, condition]
         actions[-1, condition] += final_adjustment
@@ -115,7 +147,22 @@ def evaluate_policy(model, num_episodes, S0,V0, mu,kappa, theta, sigma,rho, days
 
     for _ in range(num_episodes):
         results = simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, flag=False, batch_size=batch_size)
+<<<<<<< Updated upstream
         S_n, A_n, q_n, total_spent, actions, log_densities, probabilities, bell_signals, episode_payoff = results
+=======
+        S_n, A_n, q_n, total_spent, actions, log_densities, bell_signals, episode_payoff = results
+        
+        # Trouver le dernier jour où toutes les conditions sont remplies
+        final_day = None
+        for t in range(days):
+            condition = calculate_condition(bell_signals, q_n, t, jour_cloche, goal, days)
+            if (condition & (bell_signals > 1)).any():
+                final_day = t
+                break
+        
+        if final_day is None:
+            final_day = days #si aucune condition remplie on prend le dernier jour
+>>>>>>> Stashed changes
 
         final_day = len(actions[:, 0]) - 1
         total_spent_single = total_spent[final_day, 0]
@@ -200,15 +247,6 @@ def get_user_choice(prompt, valid_choices):
  
 # Initialisation du modèle et des paramètres
  
-model_name = input("Quel modèle voulez-vous utiliser ? (par exemple : Net, StockNetwork, etc.) : ").strip()
- 
-try:
-    # Importation dynamique de la classe de modèle
-    ModelClass = globals()[model_name]
-    model = ModelClass()  # Instanciation du modèle
-except KeyError:
-    raise ValueError(f"Le modèle '{model_name}' n'est pas reconnu. Assurez-vous que le nom du modèle est correct.")
- 
 # Paramètres du modèle
 S0 = 100
 V0 = 0.04  # Volatilité initiale
@@ -217,8 +255,24 @@ kappa = 2.0
 theta = 0.04
 sigma = 2.0
 rho = -0.7
+<<<<<<< Updated upstream
 days = 60
 goal = 100
+=======
+
+model_name = input("Quel modèle voulez-vous utiliser ? (par exemple : Net, StockNetwork, etc.) : ").strip()
+ 
+try:
+    # Importation dynamique de la classe de modèle
+    ModelClass = globals()[model_name]
+    if model_name == "StockNetwork":
+        model = ModelClass(goal)  # Instanciation du modèle avec le paramètre goal
+    else:
+        model = ModelClass()
+except KeyError:
+    raise ValueError(f"Le modèle '{model_name}' n'est pas reconnu. Assurez-vous que le nom du modèle est correct.")
+
+>>>>>>> Stashed changes
  
 # Choix de l'utilisateur pour charger ou entraîner le modèle
 choice = get_user_choice("Voulez-vous charger un modèle existant (c) ou entraîner un nouveau modèle (e) ? (c/e) : ", ['c', 'e'])

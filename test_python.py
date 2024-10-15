@@ -1,4 +1,5 @@
 import torch
+<<<<<<< Updated upstream
 import numpy as np
 
 def simulate_price(X, sigma, S0):
@@ -101,3 +102,13 @@ u = np.random.uniform(0, 1, size=bell.shape)
 u = torch.tensor(u, dtype=torch.float32)
 bell = (u < bell).float()
 print(bell)
+=======
+
+tens =torch.tensor([[0., 1., 1., 1., 0.],
+        [0., 1., 1., 1., 0.]])
+
+print(tens.shape)
+print(3*(10*tens[:,3]))
+
+torch.tensor([20., 20.]) * torch.tensor([2.,2.])
+>>>>>>> Stashed changes
