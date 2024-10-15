@@ -20,6 +20,18 @@ def payoff(A_n, total_spent):
 def calculate_condition(bell_signals, q_n, t, jour_cloche, goal, days):
     return ((bell_signals[t, :] >= 0.5) & (t+1 >= jour_cloche) & (q_n[t, :] >= goal)) | (t+1 >= days)
 
+def recursive_payoff(A_n, total_spent, liste_bell, goal, t):
+
+    if t == 1:
+        return payoff(A_n[1, :] , total_spent[1, :])
+    
+    payoff_current = payoff(A_n[t, :] ,total_spent[t, :])
+    bell_t = liste_bell[t]
+
+    next_payoff = (payoff_current * bell_t) + (1 - bell_t) * recursive_payoff(A_n, total_spent, liste_bell, goal, t-1)
+    
+    return next_payoff
+
 def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, flag, batch_size=2):
     q_n = torch.zeros((days+1, batch_size), dtype=torch.float32)
     q_n[days, :] = goal 
@@ -75,7 +87,9 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, fl
             q_n[t+1:, condition] = q_n[t, condition]
             not_assigned = torch.isnan(episode_payoff)
             A_n[t+1, not_assigned] = torch.mean(S_n[1:t+2, :], axis=0)[not_assigned]
-            episode_payoff[not_assigned] = payoff(A_n[t+1, not_assigned], total_spent[t+1, not_assigned])
+            liste_bell = torch.zeros(days+1, batch_size, dtype=torch.float32)
+            liste_bell[t] = 1 
+            episode_payoff[not_assigned] = recursive_payoff(A_n, total_spent, liste_bell, goal, t)[not_assigned]
             A_n[days, condition] = A_n[t+1, condition]
 
     
