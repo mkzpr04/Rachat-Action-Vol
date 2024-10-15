@@ -27,7 +27,7 @@ class StockNetwork(nn.Module):
         x = self.act3(self.hidden3(x))
         x = self.act4(self.hidden4(x))
         x = self.act5(self.hidden5(x))
-        mean = torch.minimum( torch.maximum( (self.mean_output(x).squeeze(1)+ input[:, 3]) * self.Q, torch.tensor(0.0)),
+        mean = torch.minimum( torch.maximum( (self.mean_output(x).squeeze(1)+input[:, 0]) * self.Q, torch.tensor(0.0)),
                               torch.tensor(self.Q))
         bell_param = self.act_output(self.bell_output(x)).squeeze(1)
         return mean, bell_param

@@ -54,7 +54,7 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, fl
     episode_payoff =torch.full((batch_size,), float('nan'), dtype=torch.float32)
 
     if not flag: # lorsqu'on évalue le model
-        np.random.seed(0)
+        np.random.seed(1)
     X = np.random.normal(0, 1, (days, batch_size))
     S_n = simulate_price(X, sigma, S0)
     S_n = torch.tensor(S_n, dtype=torch.float32)
@@ -84,7 +84,7 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, fl
 
 
         # MAJ des états
-        q_n[t+1,:] = total_stock_target if t < days-1 else goal # * (goal - q_n[t, :]) if t < days - 1 else goal
+        q_n[t+1,:] = total_stock_target if t < days-1 else goal # (goal - q_n[t, :]) if t < days - 1 else goal
         v_n = q_n[t+1, :] - q_n[t, :]
         total_spent[t+1, :] = total_spent[t, :] + v_n * S_n[t+1, :]
         log_densities[t, :] = log_density if log_density is not None else 0
