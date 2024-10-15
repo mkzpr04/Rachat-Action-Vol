@@ -18,7 +18,7 @@ def payoff(A_n, total_spent):
     return goal * A_n - total_spent
 
 def calculate_condition(bell_signals, q_n, t, jour_cloche, goal, days):
-    return ((bell_signals[t, :] >= 0.5) & (t+1 >= jour_cloche) & (q_n[t, :] >= goal)) | (t+1 >= days)
+    return ((bell_signals[t, :] >= 0.5) & (t >= jour_cloche-1) & (q_n[t, :] >= goal)) | (t+1 >= days)
 
 def recursive_payoff(A_n, total_spent, liste_bell, goal, t):
 
@@ -68,7 +68,7 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, fl
                     bell = etat[1]
                 else:
                     etat = model.forward(state)
-                    etat = torch.stack(etat, dim=0).squeeze().T
+                    etat = torch.stack(etat, dim=1).squeeze().T
                     total_stock_target = etat[0]
                     bell = etat[1]
 
@@ -234,15 +234,32 @@ def get_user_choice(prompt, valid_choices):
         print(f"Choix invalide. Veuillez entrer une des options suivantes : {', '.join(valid_choices)}")
  
 # Initialisation du modèle et des paramètres
- 
+# Paramètres du modèle
+S0 = 45
+sigma = 0.6
+days = 63
+goal = 20
+jour_cloche = 22
+
+V0 = 0.04  # Volatilité initiale
+mu = 0.1   # Rendement attendu
+kappa = 2.0
+theta = 0.04
+rho = -0.7
+
 model_name = input("Quel modèle voulez-vous utiliser ? (par exemple : Net, StockNetwork, etc.) : ").strip()
- 
 try:
     # Importation dynamique de la classe de modèle
     ModelClass = globals()[model_name]
-    model = ModelClass()  # Instanciation du modèle
+    if model_name == "StockNetwork":
+        model = ModelClass(goal)
+ 
+    else:
+        model = ModelClass()  # Instanciation du modèle
 except KeyError:
     raise ValueError(f"Le modèle '{model_name}' n'est pas reconnu. Assurez-vous que le nom du modèle est correct.")
+ 
+
  
 # Paramètres du modèle
 S0 = 45
