@@ -18,7 +18,7 @@ def payoff(A_n, total_spent):
     return goal * A_n - total_spent
 
 def calculate_condition(bell_signals, q_n, t, jour_cloche, goal, days):
-    return ((bell_signals[t, :] >= 0.5) & (t >= jour_cloche-1) & (q_n[t, :] >= goal)) | (t+1 >= days)
+    return ((bell_signals[t, :] >= 0.5) & (t >= jour_cloche-1) & (q_n[t, :] >= goal)) | (t+1 >= days) 
 
 def recursive_payoff(A_n, total_spent, liste_bell, goal, t):
 
@@ -72,7 +72,6 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, fl
                     total_stock_target = etat[0]
                     bell = etat[1]
 
-                    
 
         # MAJ des états
         q_n[t+1,:] = total_stock_target if t < days-1 else goal # * (goal - q_n[t, :]) if t < days - 1 else goal
@@ -80,10 +79,10 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, fl
         total_spent[t+1, :] = total_spent[t, :] + v_n * S_n[t+1, :]
         log_densities[t, :] = log_density if log_density is not None else 0
         actions[t, :] = v_n
-        bell_signals[t, :] = bell
+        bell_signals[t+1, :] = bell
         condition = calculate_condition(bell_signals, q_n, t, jour_cloche, goal, days)
         if condition.any(): # Si la condition est remplie pour au moins un batch
-            bell_signals[t, :]=bell_signals[t, :]+1
+            bell_signals[t+1, :]=bell_signals[t+1, :]+1
             q_n[t+1:, condition] = q_n[t, condition]
             not_assigned = torch.isnan(episode_payoff)
             A_n[t+1, not_assigned] = torch.mean(S_n[1:t+2, :], axis=0)[not_assigned]
@@ -91,8 +90,7 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, fl
             liste_bell[t] = 1 
             episode_payoff[not_assigned] = recursive_payoff(A_n, total_spent, liste_bell, goal, t)[not_assigned]
             A_n[days, condition] = A_n[t+1, condition]
-
-    
+        
     condition = q_n[days, :] < goal
     if condition.any():
         A_n[days, condition] = torch.mean(S_n[1:days + 1, :], axis=0)[condition]
@@ -142,7 +140,7 @@ def evaluate_policy(model, num_episodes, S0, V0, mu, kappa, theta, sigma, rho, d
         for t in range(days):
             condition = calculate_condition(bell_signals, q_n, t, jour_cloche, goal, days)
             if (condition & (bell_signals > 1)).any():
-                final_day = (condition & (bell_signals > 1)).nonzero(as_tuple=True)[0][-1]
+                final_day = t
                 break
         
         if final_day is None:
@@ -234,7 +232,9 @@ def get_user_choice(prompt, valid_choices):
         print(f"Choix invalide. Veuillez entrer une des options suivantes : {', '.join(valid_choices)}")
  
 # Initialisation du modèle et des paramètres
-# Paramètres du modèle
+ 
+
+ # Paramètres du modèle
 S0 = 45
 sigma = 0.6
 days = 63
@@ -248,31 +248,18 @@ theta = 0.04
 rho = -0.7
 
 model_name = input("Quel modèle voulez-vous utiliser ? (par exemple : Net, StockNetwork, etc.) : ").strip()
+ 
 try:
     # Importation dynamique de la classe de modèle
     ModelClass = globals()[model_name]
     if model_name == "StockNetwork":
         model = ModelClass(goal)
- 
+
     else:
         model = ModelClass()  # Instanciation du modèle
 except KeyError:
     raise ValueError(f"Le modèle '{model_name}' n'est pas reconnu. Assurez-vous que le nom du modèle est correct.")
- 
 
- 
-# Paramètres du modèle
-S0 = 45
-sigma = 0.6
-days = 63
-goal = 20
-jour_cloche = 22
-
-V0 = 0.04  # Volatilité initiale
-mu = 0.1   # Rendement attendu
-kappa = 2.0
-theta = 0.04
-rho = -0.7
 
  
 # Choix de l'utilisateur pour charger ou entraîner le modèle
