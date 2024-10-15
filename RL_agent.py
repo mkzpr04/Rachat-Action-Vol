@@ -3,25 +3,34 @@ import torch.nn as nn
 import numpy as np 
 
 class StockNetwork(nn.Module):
-    def __init__(self):
-        super().__init__() 
-        self.hidden1 = nn.Linear(5, 128)
+    def __init__(self, goal):
+        super().__init__()
+        self.hidden1 = nn.Linear(5, 512)
         self.act1 = nn.ReLU()
-        self.hidden2 = nn.Linear(128, 128)
+        self.hidden2 = nn.Linear(512, 512)
         self.act2 = nn.ReLU()
-        self.hidden3 = nn.Linear(128, 128)
+        self.hidden3 = nn.Linear(512, 512)
         self.act3 = nn.ReLU()
-        self.mean_output = nn.Linear(128, 1)
-        self.bell_output = nn.Linear(128, 1)
+        self.hidden4 = nn.Linear(512, 512)
+        self.act4 = nn.ReLU()
+        self.hidden5 = nn.Linear(512, 512)
+        self.act5 = nn.ReLU()
+        self.mean_output = nn.Linear(512, 1)
+        self.bell_output = nn.Linear(512, 1)
         self.act_output = nn.Sigmoid()
-
+        self.Q = goal
+        
     def forward(self, x):
-            x = self.act1(self.hidden1(x))
-            x = self.act2(self.hidden2(x))
-            x = self.act3(self.hidden3(x))
-            mean = self.mean_output(x)
-            bell_param = self.act_output(self.bell_output(x))
-            return mean, bell_param
+        input = x
+        x = self.act1(self.hidden1(x))
+        x = self.act2(self.hidden2(x))
+        x = self.act3(self.hidden3(x))
+        x = self.act4(self.hidden4(x))
+        x = self.act5(self.hidden5(x))
+        mean = torch.minimum( torch.maximum(self.mean_output(x).squeeze(1) * (self.Q- input[:, 3]), torch.tensor(0.0)),
+                              torch.tensor(self.Q))
+        bell_param = self.act_output(self.bell_output(x)).squeeze(1)
+        return mean, bell_param
     
     def sample_action(self, state, goal, days):
         mean, bell_param = self.forward(state)
