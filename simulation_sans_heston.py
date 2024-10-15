@@ -20,6 +20,16 @@ def payoff(A_n, total_spent):
 def calculate_condition(bell_signals, q_n, t, jour_cloche, goal, days):
     return ((bell_signals[t, :] >= 0.5) & (t >= jour_cloche-1) & (q_n[t, :] >= goal)) | (t+1 >= days) 
 
+"""def pnl(A_n, total_spent, liste_bell, N):
+ 
+   total = 0
+   for n in range(1, N+1):
+        product_term = 1
+        for k in range(1, n):
+            product_term *= (1 - liste_bell[k])
+        total += product_term * liste_bell[n] * payoff(A_n[n, :], total_spent[n, :])
+    return total
+"""
 def recursive_payoff(A_n, total_spent, liste_bell, goal, t):
 
     if t == 1:
@@ -79,7 +89,7 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, fl
         total_spent[t+1, :] = total_spent[t, :] + v_n * S_n[t+1, :]
         log_densities[t, :] = log_density if log_density is not None else 0
         actions[t, :] = v_n
-        bell_signals[t+1, :] = bell
+        bell_signals[t, :] = bell
         condition = calculate_condition(bell_signals, q_n, t, jour_cloche, goal, days)
         if condition.any(): # Si la condition est remplie pour au moins un batch
             bell_signals[t+1, :]=bell_signals[t+1, :]+1
