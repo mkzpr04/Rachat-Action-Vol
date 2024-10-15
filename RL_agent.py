@@ -21,27 +21,6 @@ class StockNetwork(nn.Module):
         self.Q = goal
 
     def forward(self, x):
-<<<<<<< Updated upstream
-        x = self.act1(self.hidden1(x))
-        x = self.act2(self.hidden2(x))
-        x = self.act3(self.hidden3(x))
-        mean = self.mean_output(x)
-        bell = self.act_output(self.bell_output(x))
-        return mean, bell
-
-    def sample_action(self, state, goal, days):
-        mean, bell = self.forward(state)
-        std = (goal / days) * 0.05
-
-        
-        if torch.isnan(mean).any() or torch.isinf(mean).any():
-            mean = torch.tensor(0.0)
-    
-        total_stock_target = mean + std * torch.randn_like(mean) # mu + sigma * N(0,1)
-        u = np.random.uniform(0, 1, size=bell.shape)
-        u = torch.tensor(u, dtype=torch.float32)
-        bell = (u < bell).float()
-=======
             input = x
             x = self.act1(self.hidden1(x))
             x = self.act2(self.hidden2(x))
@@ -70,13 +49,9 @@ class StockNetwork(nn.Module):
         pdf_total_stock_target=(1 / (torch.sqrt(two_pi) *std))* torch.exp(-0.5 * ((total_stock_target - mean) / std) ** 2)
         pdf_bell = torch.where(bell == 1, bell_param, 1 - bell_param) 
     
->>>>>>> Stashed changes
         
         log_density = -0.5 * torch.log(2 * torch.tensor(np.pi) * (std *std)) - ((total_stock_target - mean) *(total_stock_target - mean)) / (2 * (std *std)) # vraisemblance de la première action mais il mnanque la proba de sonner la cloche
 
-<<<<<<< Updated upstream
-        prob = 0.5 * (1 + torch.erf((total_stock_target - mean) / (std * torch.sqrt(torch.tensor(2.0))))) 
-=======
         """
         log_stock_purchase = -0.5 * ((stock_purchase - mean) / std) ** 2 - torch.log(std * torch.sqrt(2 * torch.pi))
         log_bell = bell * torch.log(bell_param) + (1 - bell) * torch.log(1 - bell_param)
@@ -84,13 +59,6 @@ class StockNetwork(nn.Module):
         """
     
         return total_stock_target, bell, log_density
->>>>>>> Stashed changes
-
-        # Calcul de la vraisemblance d'avoir sonné la cloche
-        bell_prob = bell.float() * prob + (1 - bell.float()) * (1 - prob)
-        log_density += torch.log(bell_prob)
-
-        return total_stock_target, bell, log_density, prob
     
     @staticmethod
     def normalize(state, days, goal, S0):
