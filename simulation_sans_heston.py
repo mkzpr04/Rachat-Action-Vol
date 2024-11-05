@@ -20,7 +20,7 @@ def payoff(A_n, total_spent):
 def calculate_condition(bell_signals, q_n, t, jour_cloche, goal, days):
     return ((bell_signals[t, :] >= 0.5) & (t >= jour_cloche-1) & (q_n[t, :] >= goal)) | (t+1 >= days) 
 
-"""def pnl(A_n, total_spent, liste_bell, N):
+"""def iterative_payoff(A_n, total_spent, liste_bell, N):
  
    total = 0
    for n in range(1, N+1):
@@ -54,7 +54,7 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, fl
     episode_payoff =torch.full((batch_size,), float('nan'), dtype=torch.float32)
 
     if not flag: # lorsqu'on évalue le model
-        np.random.seed(1)
+        np.random.seed(0)
     X = np.random.normal(0, 1, (days, batch_size))
     S_n = simulate_price(X, sigma, S0)
     S_n = torch.tensor(S_n, dtype=torch.float32)
@@ -64,7 +64,7 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, fl
         if isinstance(model, Net):
             state = model.normalize(t+1 , S_n[t, :], A_n[t, :], q_n[t, :])  
         else: 
-            state = model.normalize((t, S_n[t, :], A_n[t, :], q_n[t, :], total_spent[t, :]), days, goal, S0)
+            state = model.normalize1((t, S_n[t, :], A_n[t, :], q_n[t, :], total_spent[t, :]), days, goal, S0)
 
         log_density = None
 
@@ -78,7 +78,6 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, fl
                     bell = etat[1]
                 else:
                     etat = model.forward(state)
-                    etat = torch.stack(etat, dim=1).squeeze().T
                     total_stock_target = etat[0]
                     bell = etat[1]
 
@@ -99,6 +98,7 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, fl
             liste_bell = torch.zeros(days+1, batch_size, dtype=torch.float32)
             liste_bell[t] = 1 
             episode_payoff[not_assigned] = recursive_payoff(A_n, total_spent, liste_bell, goal, t)[not_assigned]
+            #episode_payoff[not_assigned] = payoff(A_n[t+1, not_assigned], total_spent[t+1, not_assigned])
             A_n[days, condition] = A_n[t+1, condition]
         
     condition = q_n[days, :] < goal
@@ -111,6 +111,7 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, fl
         liste_bell=torch.zeros(days+1, batch_size, dtype=torch.float32)
         liste_bell[days]=1
         episode_payoff = recursive_payoff(A_n,total_spent,liste_bell,goal,days)
+        #episode_payoff = payoff(A_n[days, :], total_spent[days, :])
 
     return S_n, A_n, q_n, total_spent, actions, log_densities, bell_signals, episode_payoff
 

@@ -3,7 +3,7 @@ import torch.nn as nn
 import numpy as np 
 
 class StockNetwork(nn.Module):
-    def __init__(self, goal):
+    def __init__(self, Q):
         super().__init__()
         self.hidden1 = nn.Linear(5, 512)
         self.act1 = nn.ReLU()
@@ -15,10 +15,10 @@ class StockNetwork(nn.Module):
         self.act4 = nn.ReLU()
         self.hidden5 = nn.Linear(512, 512)
         self.act5 = nn.ReLU()
-        self.mean_output = nn.Linear(512, 1)
-        self.bell_output = nn.Linear(512, 1)
+        self.output_layer = nn.Linear(512, 2)
         self.act_output = nn.Sigmoid()
-        self.Q = goal
+        self.Q = Q
+        self.scale = nn.Parameter(torch.tensor(0.0, requires_grad=True))
         
     def forward(self, x):
         input = x
@@ -27,18 +27,36 @@ class StockNetwork(nn.Module):
         x = self.act3(self.hidden3(x))
         x = self.act4(self.hidden4(x))
         x = self.act5(self.hidden5(x))
-        mean = torch.minimum( torch.maximum( (self.mean_output(x).squeeze(1)+input[:, 0]) * self.Q, torch.tensor(0.0)),
+        x = self.output_layer(x)
+        
+        x[:,0] = torch.minimum( torch.maximum( (x[:, 0]+input[:, 0]) * self.Q, torch.tensor(0.0)),
                               torch.tensor(self.Q))
-        bell_param = self.act_output(self.bell_output(x)).squeeze(1)
-        return mean, bell_param
+        #x[:,0] = self.Q* torch.minimum( (1+ x[:, 0])*(input[:,0]+1)/self.N, torch.tensor(1))-input[:,3]
+        x[:,1] = self.act_output(x[:, 1])
+
+        """
+        # Utilisation de self.scale pour ajuster la sortie de mean_output
+        mean_output = x[:, 0]
+        adjusted_mean_output = mean_output * self.scale
+        
+        x[:, 0] = torch.minimum(
+            torch.maximum((adjusted_mean_output + input[:, 0]) * self.Q, torch.tensor(0.0)),
+            torch.tensor(self.Q)
+        )
+        
+        # Utilisation de self.scale pour ajuster la sortie de bell_output (si nécessaire)
+        bell_output = x[:, 1]
+        adjusted_bell_output = bell_output * self.scale
+        
+        x[:, 1] = torch.sigmoid(adjusted_bell_output)"""
+        return x.T
     
-    def sample_action(self, state, goal, days):
+    def sample_action(self, state, Q, N):
         mean, bell_param = self.forward(state)
+
         mean = torch.tensor(mean, dtype=torch.float32, requires_grad=True)
-        std = (goal / days) * 0.05
+        std = (Q / N) * 0.05
         std = torch.tensor(std, dtype=torch.float32, requires_grad=True)
-        if torch.isnan(mean).any() or torch.isinf(mean).any():
-            mean = torch.tensor(0.0, dtype=torch.float32, requires_grad=True)
     
         total_stock_target = mean + std * torch.randn_like(mean) # mu + sigma * N(0,1)
         u = np.random.uniform(0, 1, size=bell_param.shape)
@@ -50,9 +68,9 @@ class StockNetwork(nn.Module):
         pdf_total_stock_target=(1 / (torch.sqrt(two_pi) *std))* torch.exp(-0.5 * ((total_stock_target - mean) / std) ** 2)
         pdf_bell = torch.where(bell == 1, bell_param, 1 - bell_param) 
     
-        likelihood=pdf_bell*pdf_total_stock_target 
+        density=pdf_bell*pdf_total_stock_target 
 
-        log_density=torch.log(likelihood) 
+        log_density=torch.log(density) 
     
 
         """
@@ -66,15 +84,27 @@ class StockNetwork(nn.Module):
 
     
     @staticmethod
-    def normalize(state, days, goal, S0):
+    def normalize(state, N, Q, S0):
         t, S_n, A_n, q_n, total_spent = state  # tenseurs
         return torch.vstack([
-            torch.full_like(S_n, t / days),  # t normalisé
+            torch.full_like(S_n, t / N),  # t normalisé
             S_n / S0,                        # Prix S_n normalisé
             A_n / S0,                        # A_n normalisé
-            q_n / goal,                      # Nombre d'actions normalisé
-            total_spent / (S0 * goal)        # Total dépensé normalisé
+            q_n / Q,                      # Nombre d'actions normalisé
+            total_spent / (S0 * Q)        # Total dépensé normalisé
         ]).T
+    
+    @staticmethod
+    def normalize1(state, N, Q, S0):
+        n, S_n, A_n, q_n, total_spent = state  # tenseurs
+        return torch.vstack([
+            torch.full_like(S_n, (n / N)-1/2),  # t normalisé
+            (S_n-S0 )/ S0,                        # Prix S_n normalisé
+            (A_n-S_n) / S0,                        # A_n normalisé
+            (q_n / Q) -1/2,                      # Nombre d'actions normalisé
+            total_spent / (S0 * Q)        # Total dépensé normalisé
+        ]).T
+
 
 
     def load_model(self, path):
