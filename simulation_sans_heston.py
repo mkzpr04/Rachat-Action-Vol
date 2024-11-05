@@ -17,8 +17,11 @@ def simulate_price(X, sigma, S0):
 def payoff(A_n, total_spent):
     return goal * A_n - total_spent
 
-def calculate_condition(bell_signals, q_n, t, jour_cloche, goal, days, batch_index):
+def calculate_condition1(bell_signals, q_n, t, jour_cloche, goal, days, batch_index):
     return ((bell_signals[t, batch_index] >= 0.5) & (t >= jour_cloche-1) & (q_n[t, batch_index] >= goal)) | (t+1 >= days) 
+
+def calculate_condition(bell_signals, q_n, t, jour_cloche, goal, days):
+    return ((bell_signals[t, :] >= 0.5) & (t >= jour_cloche-1) & (q_n[t, :] >= goal)) | (t+1 >= days) 
 
 """def iterative_payoff(A_n, total_spent, liste_bell, N):
    total = 0
@@ -89,25 +92,17 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, fl
         log_densities[t, :] = log_density if log_density is not None else 0
         actions[t, :] = v_n
         bell_signals[t, :] = bell
-        condition0 = calculate_condition(bell_signals, q_n, t, jour_cloche, goal, days, 0)
-        condition1 = calculate_condition(bell_signals, q_n, t, jour_cloche, goal, days, 1)
-        if condition0: # Si la condition est remplie pour au moins un batch
+        condition = calculate_condition(bell_signals, q_n, t, jour_cloche, goal, days)
+        if condition.any(): # Si la condition est remplie pour au moins un batch
             bell_signals[t+1, :]=bell_signals[t+1, :]+1
-            q_n[t+1:, condition0] = q_n[t, condition0]
+            q_n[t+1:, condition] = q_n[t, condition]
             not_assigned = torch.isnan(episode_payoff)
             liste_bell = torch.zeros(days+1, batch_size, dtype=torch.float32)
             liste_bell[t] = 1 
             episode_payoff[not_assigned] = recursive_payoff(A_n, total_spent, liste_bell, goal, t)[not_assigned]
-            A_n[days, condition0] = A_n[t+1, condition0]
-        if condition1:
-            bell_signals[t+1, :]=bell_signals[t+1, :]+1
-            q_n[t+1:, condition1] = q_n[t, condition1]
-            not_assigned = torch.isnan(episode_payoff)
-            liste_bell = torch.zeros(days+1, batch_size, dtype=torch.float32)
-            liste_bell[t] = 1 
-            episode_payoff[not_assigned] = recursive_payoff(A_n, total_spent, liste_bell, goal, t)[not_assigned]
-            A_n[days, condition1] = A_n[t+1, condition1]
-
+            #episode_payoff[not_assigned] = payoff(A_n[t+1, not_assigned], total_spent[t+1, not_assigned])
+            A_n[days, condition] = A_n[t+1, condition]
+        
     condition = q_n[days, :] < goal
     if condition.any():
         final_adjustment = goal - q_n[days, condition]
@@ -155,9 +150,8 @@ def evaluate_policy(model, num_episodes, S0, V0, mu, kappa, theta, sigma, rho, d
         # Trouver le dernier jour où toutes les conditions sont remplies
         final_day = None
         for t in range(days):
-            condition0 = calculate_condition(bell_signals, q_n, t, jour_cloche, goal, days, 0)
-            condition1 = calculate_condition(bell_signals, q_n, t, jour_cloche, goal, days, 1)
-            if ((condition0 | condition1) & (bell_signals >= 1)).any():
+            condition = calculate_condition(bell_signals, q_n, t, jour_cloche, goal, days)
+            if (condition & (bell_signals >= 1)).any():
                 final_day = t
                 break
         
@@ -225,12 +219,12 @@ def plot_episode(S_n, A_n, q_n, bell_signals, days, jour_cloche, goal):
     final_day_1 = None
     final_day_2 = None
     for t in range(days):
-        condition0 = calculate_condition(bell_signals, q_n, t, jour_cloche, goal, days, 0)
+        condition0 = calculate_condition1(bell_signals, q_n, t, jour_cloche, goal, days, 0)
         if (condition0 & (bell_signals >= 1)).any():
             final_day_1 = t
             break
     for t in range(days):
-        condition1 = calculate_condition(bell_signals, q_n, t, jour_cloche, goal, days, 1)
+        condition1 = calculate_condition1(bell_signals, q_n, t, jour_cloche, goal, days, 1)
         if (condition1 & (bell_signals >= 1)).any():
             final_day_2 = t
             break
