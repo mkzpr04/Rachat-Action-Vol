@@ -17,11 +17,10 @@ def simulate_price(X, sigma, S0):
 def payoff(A_n, total_spent):
     return goal * A_n - total_spent
 
-def calculate_condition(bell_signals, q_n, t, jour_cloche, goal, days):
-    return ((bell_signals[t, :] >= 0.5) & (t >= jour_cloche-1) & (q_n[t, :] >= goal)) | (t+1 >= days) 
+def calculate_condition(bell_signals, q_n, t, jour_cloche, goal, days, batch_index):
+    return ((bell_signals[t, batch_index] >= 0.5) & (t >= jour_cloche-1) & (q_n[t, batch_index] >= goal)) | (t+1 >= days) 
 
 """def iterative_payoff(A_n, total_spent, liste_bell, N):
- 
    total = 0
    for n in range(1, N+1):
         product_term = 1
@@ -58,9 +57,10 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, fl
     X = np.random.normal(0, 1, (days, batch_size))
     S_n = simulate_price(X, sigma, S0)
     S_n = torch.tensor(S_n, dtype=torch.float32)
-    
-    for t in range(days):
+    for t in range(days+1):
         A_n[t, :] = torch.mean(S_n[1:t+1, :], axis=0) if t > 0 else S0
+
+    for t in range(days):
         if isinstance(model, Net):
             state = model.normalize(t+1 , S_n[t, :], A_n[t, :], q_n[t, :])  
         else: 
@@ -89,21 +89,27 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, fl
         log_densities[t, :] = log_density if log_density is not None else 0
         actions[t, :] = v_n
         bell_signals[t, :] = bell
-        condition = calculate_condition(bell_signals, q_n, t, jour_cloche, goal, days)
-        if condition.any(): # Si la condition est remplie pour au moins un batch
+        condition0 = calculate_condition(bell_signals, q_n, t, jour_cloche, goal, days, 0)
+        condition1 = calculate_condition(bell_signals, q_n, t, jour_cloche, goal, days, 1)
+        if condition0: # Si la condition est remplie pour au moins un batch
             bell_signals[t+1, :]=bell_signals[t+1, :]+1
-            q_n[t+1:, condition] = q_n[t, condition]
+            q_n[t+1:, condition0] = q_n[t, condition0]
             not_assigned = torch.isnan(episode_payoff)
-            A_n[t+1, not_assigned] = torch.mean(S_n[1:t+2, :], axis=0)[not_assigned]
             liste_bell = torch.zeros(days+1, batch_size, dtype=torch.float32)
             liste_bell[t] = 1 
             episode_payoff[not_assigned] = recursive_payoff(A_n, total_spent, liste_bell, goal, t)[not_assigned]
-            #episode_payoff[not_assigned] = payoff(A_n[t+1, not_assigned], total_spent[t+1, not_assigned])
-            A_n[days, condition] = A_n[t+1, condition]
-        
+            A_n[days, condition0] = A_n[t+1, condition0]
+        if condition1:
+            bell_signals[t+1, :]=bell_signals[t+1, :]+1
+            q_n[t+1:, condition1] = q_n[t, condition1]
+            not_assigned = torch.isnan(episode_payoff)
+            liste_bell = torch.zeros(days+1, batch_size, dtype=torch.float32)
+            liste_bell[t] = 1 
+            episode_payoff[not_assigned] = recursive_payoff(A_n, total_spent, liste_bell, goal, t)[not_assigned]
+            A_n[days, condition1] = A_n[t+1, condition1]
+
     condition = q_n[days, :] < goal
     if condition.any():
-        A_n[days, condition] = torch.mean(S_n[1:days + 1, :], axis=0)[condition]
         final_adjustment = goal - q_n[days, condition]
         total_spent[days, condition] = total_spent[days-1,condition] + final_adjustment * S_n[days, condition]
         actions[-1, condition] = final_adjustment
@@ -149,8 +155,9 @@ def evaluate_policy(model, num_episodes, S0, V0, mu, kappa, theta, sigma, rho, d
         # Trouver le dernier jour où toutes les conditions sont remplies
         final_day = None
         for t in range(days):
-            condition = calculate_condition(bell_signals, q_n, t, jour_cloche, goal, days)
-            if (condition & (bell_signals > 1)).any():
+            condition0 = calculate_condition(bell_signals, q_n, t, jour_cloche, goal, days, 0)
+            condition1 = calculate_condition(bell_signals, q_n, t, jour_cloche, goal, days, 1)
+            if ((condition0 | condition1) & (bell_signals >= 1)).any():
                 final_day = t
                 break
         
@@ -202,7 +209,7 @@ def export_csv(actions, episode_payoff, S_n, A_n, q_n, total_spent, filename):
     df = pd.DataFrame(data)
     df.to_csv(filename, index=False)
  
-def plot_episode(S_n, A_n, q_n, cloche_n):
+def plot_episode(S_n, A_n, q_n, bell_signals, days, jour_cloche, goal):
 
     plt.figure(figsize=(14, 7))
  
@@ -214,16 +221,31 @@ def plot_episode(S_n, A_n, q_n, cloche_n):
     ax1.plot(A_n, label="A_n (Prix moyen des actions aux jours n)", color="green")
     ax1.tick_params(axis='y', labelcolor='black')
 
-    verification=True
-    for i, cloche_value in enumerate(cloche_n): 
-        
-        if float(cloche_value.item()) >= 1 and verification: 
-            ax1.axvline(x=i, color="purple", linestyle='--', label="cloche_n = 1" if i == 0 else "")
-            verification=False
+    verification = True
+    final_day_1 = None
+    final_day_2 = None
+    for t in range(days):
+        condition0 = calculate_condition(bell_signals, q_n, t, jour_cloche, goal, days, 0)
+        if (condition0 & (bell_signals >= 1)).any():
+            final_day_1 = t
+            break
+    for t in range(days):
+        condition1 = calculate_condition(bell_signals, q_n, t, jour_cloche, goal, days, 1)
+        if (condition1 & (bell_signals >= 1)).any():
+            final_day_2 = t
+            break
+
+    if verification:
+        if final_day_1 is not None:
+            ax1.axvline(x=final_day_1, color="red", linestyle='--', label="cloche_n = 1 (batch 1)" if final_day_1 == 0 else "")
+        if final_day_2 is not None:
+            ax1.axvline(x=final_day_2, color="purple", linestyle='--', label="cloche_n = 1 (batch 2)" if final_day_2 == 0 else "")
+        verification = False
 
     ax2 = ax1.twinx()  
     ax2.set_ylabel('q_n en valeur réelle', color='red')
-    ax2.plot(q_n, label="q_n (Quantité totale d'actions au jour n)", color="red", linestyle='-')
+    ax2.plot(q_n[:, 0], label="q_n (Quantité totale d'actions au jour n, batch 1)", color="red", linestyle='-')
+    ax2.plot(q_n[:, 1], label="q_n (Quantité totale d'actions au jour n, batch 2)", color="purple", linestyle='-')
     ax2.tick_params(axis='y', labelcolor='red')
  
     fig.tight_layout()
@@ -243,8 +265,6 @@ def get_user_choice(prompt, valid_choices):
         print(f"Choix invalide. Veuillez entrer une des options suivantes : {', '.join(valid_choices)}")
  
 # Initialisation du modèle et des paramètres
- 
-
  # Paramètres du modèle
 S0 = 45
 sigma = 0.6
@@ -270,7 +290,6 @@ try:
         model = ModelClass()  # Instanciation du modèle
 except KeyError:
     raise ValueError(f"Le modèle '{model_name}' n'est pas reconnu. Assurez-vous que le nom du modèle est correct.")
-
 
  
 # Choix de l'utilisateur pour charger ou entraîner le modèle
@@ -307,7 +326,6 @@ elif choice == 'e':
         print(f"Erreur lors de la sauvegarde du modèle : {e}")
  
  
- 
 # Évaluation de la politique
 num_episodes = 100
 avg_total_spent, avg_total_stocks, avg_A_n, avg_payoff, avg_final_day, avg_actions = evaluate_policy(model, num_episodes, S0,V0, mu,kappa, theta, sigma,rho, days, goal, batch_size=2)
@@ -320,12 +338,11 @@ print(f"Jour final moyen: {avg_final_day}")
 print(f"Actions moyennes par jour: {avg_actions}")
  
 # Simulation d'un épisode et exportation des résultats
-S_n, A_n, q_n, total_spent, actions, log_densities, cloche_n, episode_payoff = simulate_episode(
+S_n, A_n, q_n, total_spent, actions, log_densities, bell_signals, episode_payoff = simulate_episode(
     model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, flag=False, batch_size=2
 )
 
 # Exportation des résultats du premier batch
 export_csv(actions[:, 0], episode_payoff[0], S_n[:,0], A_n[:, 0], q_n[:, 0], total_spent[:, 0], "episode_sans_heston.csv")
- 
-# Tracé des résultats pour le premier batch
-plot_episode(S_n[:, 0], A_n[:, 0], q_n[:, 0], cloche_n[:, 0])
+# tracé de l'épisode
+plot_episode(S_n[:, 0], A_n[:, 0], q_n, bell_signals, days, jour_cloche, goal)

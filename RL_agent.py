@@ -105,8 +105,6 @@ class StockNetwork(nn.Module):
             total_spent / (S0 * Q)        # Total dépensé normalisé
         ]).T
 
-
-
     def load_model(self, path):
         self.load_state_dict(torch.load(path))
         self.eval()
