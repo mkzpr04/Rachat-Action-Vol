@@ -17,7 +17,7 @@ class StockNetwork(nn.Module):
         self.act5 = nn.ReLU()
         self.output_layer = nn.Linear(512, 2)
         self.act_output = nn.Sigmoid()
-        self.Q = Q
+        self.Q = torch.tensor(Q, dtype=torch.float32)
         self.scale = nn.Parameter(torch.tensor(0.0, requires_grad=True))
         
     def forward(self, x):
@@ -29,10 +29,10 @@ class StockNetwork(nn.Module):
         x = self.act5(self.hidden5(x))
         x = self.output_layer(x)
         
-        x[:,0] = torch.minimum( torch.maximum( (x[:, 0]+input[:, 0]) * self.Q, torch.tensor(0.0)),
-                              torch.tensor(self.Q))
+        x[:,0] = torch.minimum(torch.maximum((x[:, 0]+input[:, 0]) * self.Q, torch.tensor(0.0, dtype=torch.float32)),
+                              self.Q)
         #x[:,0] = self.Q* torch.minimum( (1+ x[:, 0])*(input[:,0]+1)/self.N, torch.tensor(1))-input[:,3]
-        x[:,1] = self.act_output(x[:, 1])
+        x[:,1] = self.act_output(x[:,1])
 
         """
         # Utilisation de self.scale pour ajuster la sortie de mean_output
@@ -52,35 +52,26 @@ class StockNetwork(nn.Module):
         return x.T
     
     def sample_action(self, state, Q, N):
-        mean, bell_param = self.forward(state)
+        x = self.forward(state)
+        mean = x[:,0]
 
-        mean = torch.tensor(mean, dtype=torch.float32, requires_grad=True)
+        mean = mean.float()
         std = (Q / N) * 0.05
-        std = torch.tensor(std, dtype=torch.float32, requires_grad=True)
+        std = torch.tensor(std, dtype=torch.float32, device=mean.device)
     
         total_stock_target = mean + std * torch.randn_like(mean) # mu + sigma * N(0,1)
-        u = np.random.uniform(0, 1, size=bell_param.shape)
-        u = torch.tensor(u, dtype=torch.float32, requires_grad=True)
-        bell = (u < bell_param).float()
+        u = np.random.uniform(0, 1, size=mean.shape)
+        u = torch.tensor(u, dtype=torch.float32, device=mean.device)
+        #bell = (u < x[:,1]).float()
 
-
-        two_pi = torch.tensor(2 * np.pi, dtype=torch.float32, requires_grad=True)
-        pdf_total_stock_target=(1 / (torch.sqrt(two_pi) *std))* torch.exp(-0.5 * ((total_stock_target - mean) / std) ** 2)
-        pdf_bell = torch.where(bell == 1, bell_param, 1 - bell_param) 
+        pdf_total_stock_target =  torch.exp(-0.5 * ((total_stock_target - mean) / std) ** 2) / ((np.sqrt(2*np.pi) * std))  
+        #pdf_bell = torch.where(bell == 1, x[:,1], 1 - x[:,1]) 
     
-        density=pdf_bell*pdf_total_stock_target 
+        density=pdf_total_stock_target 
 
         log_density=torch.log(density) 
     
-
-        """
-        on peut aussi faire:
-        log_stock_purchase = -0.5 * ((stock_purchase - mean) / std) ** 2 - torch.log(std * torch.sqrt(2 * torch.pi))
-        log_bell = bell * torch.log(bell_param) + (1 - bell) * torch.log(1 - bell_param)
-        log_density = log_bell + log_stock_purchase
-        """
-    
-        return total_stock_target, bell, log_density
+        return total_stock_target, x[:,1], log_density
 
     
     @staticmethod
