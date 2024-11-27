@@ -48,7 +48,8 @@ def expected_payoff(A_n, total_spent, bell_n, q_n, N):
 
         # Contribution du terme courant (p_n * PnL_n)
         p_n = bell_n[n, :]
-        pnl_n = payoff(q_n, A_n, total_spent, n)  # Calcul du payoff à l'étape n
+        pnl_n = payoff(q_n, A_n, total_spent, n)
+        # Calcul du payoff à l'étape n
 
         # Mise à jour des valeurs de payoff
         payoff_values += product * p_n * pnl_n
@@ -110,6 +111,8 @@ def simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, tr
         q_n[days, condition] = goal
     bell_n[days,:]=1
     episode_payoff = expected_payoff(A_n, X_n, bell_n, q_n, days)
+    
+
     return S_n, A_n, q_n, X_n, v_n, somme_density, bell_n, episode_payoff
 
 def train_model(model, simulate_episode, num_episodes, S0, V0, mu, kappa, theta, sigma, rho, days, goal, batch_size=2, lr=0.05, save_path="model.pt"):
@@ -135,8 +138,7 @@ def train_model(model, simulate_episode, num_episodes, S0, V0, mu, kappa, theta,
 
 
                 
-def evaluate_single_episode(model, S0, V0, mu, kappa, theta, sigma, rho, N, Q, batch_size=2):
-    results = simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, train=False, batch_size=2)
+def evaluate_single_episode(model, S0, V0, mu, kappa, theta, sigma, rho, N, Q,results, batch_size=2):
     S_n, A_n, q_n, total_spent, actions, log_densities, bell_signals, episode_payoff = results
     final_day = None
     for t in range(N):
@@ -310,8 +312,10 @@ elif choice == 'e':
         print(f"Modèle sauvegardé à {save_path}")
     except Exception as e:
         print(f"Erreur lors de la sauvegarde du modèle : {e}")
- 
-stats_batch = evaluate_single_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, batch_size=2)
+results=simulate_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, train=False, batch_size=2)
+S_n, A_n, q_n, X_n, v_n, somme_density, bell_n, episode_payoff=results
+
+stats_batch = evaluate_single_episode(model, S0, V0, mu, kappa, theta, sigma, rho, days, goal,results, batch_size=2)
 
 print("Batch 0 Stats:")
 print(f"Total Spent: {stats_batch[0]}")
@@ -321,11 +325,7 @@ print(f"Payoff: {stats_batch[3]}")
 print(f"Final Day: {stats_batch[4]}")
 print(f"Actions: {stats_batch[5]}")
 
-# Simulation d'un épisode et exportation des résultats
-# Run a simulation
-S_n, A_n, q_n, X_n, v_n, somme_density, bell_n, episode_payoff = simulate_episode(
-    model, S0, V0, mu, kappa, theta, sigma, rho, days, goal, train=False, batch_size=2
-)
+
 
 
 # Exportation des résultats du premier batch
