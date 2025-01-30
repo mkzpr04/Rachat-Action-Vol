@@ -1,0 +1,41 @@
+"""from PIL import Image
+import pytesseract
+
+# Configure le chemin de Tesseract (Windows uniquement)
+# pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+
+def extract_text(image_path):
+    try:
+        # Charger l'image
+        image = Image.open(image_path)
+        
+        # Extraire le texte
+        text = pytesseract.image_to_string(image, lang="eng")  # Utiliser 'fra' pour le français
+        return text
+    except Exception as e:
+        return f"Erreur lors de l'extraction : {e}"
+
+# Exemple d'utilisation
+if __name__ == "__main__":
+    image_path = "image.jpg"  # Remplacez par le chemin de votre image
+    extracted_text = extract_text(image_path)
+    print("Texte extrait :")
+    print(extracted_text)
+"""
+
+import easyocr
+
+def extract_text_with_easyocr(image_path):
+    """
+    Utilise EasyOCR pour extraire du texte d'une image.
+    :param image_path: Chemin vers l'image.
+    :return: Texte extrait.
+    """
+    reader = easyocr.Reader(['en'], gpu=False)
+    result = reader.readtext(image_path, detail=0)
+    return ' '.join(result)
+
+# Exemple
+image_path = "image.jpg"
+print(extract_text_with_easyocr(image_path))
+
