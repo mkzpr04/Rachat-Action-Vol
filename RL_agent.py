@@ -3,7 +3,7 @@ import torch.nn as nn
 import numpy as np
 
 class StockNetwork(nn.Module):
-    def __init__(self,Q):
+    def __init__(self):
         super().__init__()
         self.hidden1 = nn.Linear(5, 512)
         self.act1 = nn.ReLU()
@@ -18,6 +18,10 @@ class StockNetwork(nn.Module):
         self.output_layer = nn.Linear(512, 2)
         self.act_output = nn.Sigmoid()
         self.scale = nn.Parameter(torch.tensor(0.0, requires_grad=True))
+        self.S0 = 45
+        self.sigma = 0.6
+        self.N = 63  #days 
+        self.Q = 20  #goal
         
     def forward(self, x):
         input = x
@@ -29,27 +33,20 @@ class StockNetwork(nn.Module):
         x = self.output_layer(x)
         
         #x[:,0] = torch.minimum(torch.maximum((x[:, 0]+input[:, 0]) * self.Q, torch.tensor(0.0, dtype=torch.float32)),self.Q)
-        x[:,0] = self.Q * torch.minimum((1 + x[:, 0]) )
-
+        #x[:,0] = self.Q * torch.minimum((1 + x[:, 0]) )
+        x[:, 0] = torch.minimum(torch.maximum((x[:, 0] + input[:, 0] + 0.5) * self.Q, torch.tensor(0)), torch.tensor(self.Q))
         #x[:,0] = self.Q* torch.minimum( (1+ x[:, 0])*(input[:,0]+1)/self.N, torch.tensor(1))-input[:,3]
         x[:,1] = self.act_output(x[:,1])
-        return x
+        return x.T
 
-    def sample_action(self, state, goal, days):
+    def sample_action(self, state, Q, N):
         mean, bell = self.forward(state)
-        std = (goal / days) * 0.05
+        std = (Q / N) * 0.05
         if torch.isnan(mean).any() or torch.isinf(mean).any():
             mean = torch.tensor(0.0)
         total_stock_target = mean + std * torch.randn_like(mean) # mu + sigma * N(0,1)
         log_density = -0.5 * torch.log(2 * torch.tensor(np.pi) * (std *std)) - ((total_stock_target - mean) *(total_stock_target - mean)) / (2 * (std *std)) # vraisemblance de la première action mais il mnanque la proba de sonner la cloche
-
-        #prob = 0.5 * (1 + torch.erf((total_stock_target - mean) / (std * torch.sqrt(torch.tensor(2.0))))) 
-
-        # Calcul de la vraisemblance d'avoir sonné la cloche
-        #bell_density = torch.log(1-bell.float())
-
-        #log_density += torch.log(bell_density)
-
+        
         return total_stock_target, bell, log_density
     
     @staticmethod
@@ -61,7 +58,7 @@ class StockNetwork(nn.Module):
             A_n / S0,                        # A_n normalisé
             q_n / goal,                      # Nombre d'actions normalisé
             total_spent / (S0 * goal)        # Total dépensé normalisé
-        ])
+        ]).T
 
 
     def load_model(self, path):
