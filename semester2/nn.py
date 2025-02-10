@@ -2,8 +2,6 @@ import torch
 import torch.nn as nn
 import numpy as np
 
-
-enable_cuda = True
 n_neurons_per_layer = 512
 n_layers = 5
 
@@ -47,7 +45,7 @@ class Net(nn.Module):
                 torch.maximum((x[:, 0] + input[:, 0] + 0.5) * self.Q, torch.tensor(0)),
                 torch.tensor(self.Q)
         )
-        return x.T
+        return x
 
     def normalize(self, n_plus_one, S_tensor_step, A_tensor_step, q_previous):
         return torch.vstack(
@@ -58,6 +56,7 @@ class Net(nn.Module):
                 q_previous / self.Q - 0.5,
             ]
         ).T
+    
     def load_model(self, path, device="cpu"):
         self.load_state_dict(torch.load(path, map_location=device))
         self.eval()
@@ -70,7 +69,7 @@ class Net(nn.Module):
 model = Net()
 #weights_before = {name: param.clone() for name, param in model.named_parameters()}
 
-model.load_model("trained_model.pt")
+model.load_model(r"D:\Esilv\recherche\Rachat-Action-Vol\semester2\trained_model.pt")
 
 #weights_after = {name: param.clone() for name, param in model.named_parameters()}
 

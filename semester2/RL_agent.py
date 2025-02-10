@@ -1,5 +1,7 @@
+# RL_agent.py
 import torch
 import torch.nn as nn
+import torch.distributions as dist
 
 class StockNetwork(nn.Module):
     def __init__(self, Q):
@@ -7,33 +9,28 @@ class StockNetwork(nn.Module):
         self.Q = Q
         self.net = nn.Sequential(
             nn.Linear(5, 512),
-            nn.LayerNorm(512),
-            nn.Tanh(),
+            nn.ReLU(),
             nn.Linear(512, 512),
-            nn.LayerNorm(512),
-            nn.Tanh(),
+            nn.ReLU(),
             nn.Linear(512, 512),
-            nn.LayerNorm(512),
-            nn.Tanh(),
-            nn.Linear(512, 2)  # Ensure this outputs 2 features
+            nn.ReLU(),
+            nn.Linear(512, 512),
+            nn.ReLU(),
+            nn.Linear(512, 2)  # Output: shares (raw), stopping probability
         )
-        self.sigmoid = nn.Sigmoid()
+        self.log_std = nn.Parameter(torch.zeros(1))  # Learnable log std
 
     def forward(self, x):
         x = self.net(x)
-        # Ensure we handle both outputs correctly
-        x = torch.stack([
-            x[:, 0],  # Shares component (raw)
-            self.sigmoid(x[:, 1])  # Stopping probability
-        ], dim=1)
-        return x
+        shares = x[:, 0]  # Raw shares component
+        stop_prob = torch.sigmoid(x[:, 1])  # Stopping probability
+        return shares, stop_prob
 
-    def normalize_state(self, state, N, S0):
-        t_tensor, S_t, A_t, q_t, N_t = state
+    def normalize(self, t, S_t, A_t, q_t, N_t, N, S0):
         return torch.cat([
-            (t_tensor / N).unsqueeze(-1),
+            (t / N).unsqueeze(-1),
             (S_t / S0).unsqueeze(-1),
-            (A_t / S0).unsqueeze(-1),  # Changed normalization
+            (A_t / S0).unsqueeze(-1),
             (q_t / self.Q).unsqueeze(-1),
             (N_t / (S0 * self.Q)).unsqueeze(-1)
         ], dim=-1)
