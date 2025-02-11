@@ -4,8 +4,6 @@ import numpy as np
 from tqdm import tqdm
 import torch.optim as optim
 
-
-enable_cuda = True
 n_neurons_per_layer = 512
 n_layers = 5
 
@@ -67,6 +65,8 @@ class Net(nn.Module):
     
     def save_model(self, path):
         torch.save(self.state_dict(), path)
+
+"""
 model = Net()
 #weights_before = {name: param.clone() for name, param in model.named_parameters()}
 
@@ -84,4 +84,5 @@ actions = model.forward(state)
 print(actions)
     
 #weights_equal = {name: torch.equal(weights_before[name], weights_after[name]) for name in weights_before}
-#print(weights_equal)"""
+#print(weights_equal)
+"""

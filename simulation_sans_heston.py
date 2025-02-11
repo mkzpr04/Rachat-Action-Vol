@@ -8,6 +8,11 @@ import matplotlib.pyplot as plt
 from nn import Net
 
 Batch=64
+S0 = 45
+sigma = 0.6
+N = 63  #days 
+Q = 20  #goal
+jour_cloche = 22
 
 def simulate_price(X, sigma, S0):
     # Simulation des prix
@@ -47,6 +52,28 @@ def expected_payoff(A_n, total_spent, bell_signals, q_n, N):
 
     return payoff_values
 
+def sample_action(model, state, Q, N):
+    """
+    Fonction pour échantillonner une action à partir du modèle.
+    """
+    if isinstance(model, StockNetwork):
+        # Si le modèle est StockNetwork
+        return model.sample_action(state, Q, N)
+    else:
+        # Si le modèle est Net -> méthode générique
+        output = model.forward(state)
+        mean = output[0]
+        bell = output[1]
+        
+        std = (Q / N) * 0.05
+        if torch.isnan(mean).any() or torch.isinf(mean).any():
+            mean = torch.tensor(0.0, requires_grad=True)
+        
+        total_stock_target = mean + std * torch.randn_like(mean)  # mu + sigma * N(0,1)
+        log_density = -0.5 * torch.log(2 * torch.tensor(np.pi) * (std * std)) - ((total_stock_target - mean) * (total_stock_target - mean)) / (2 * (std * std))
+        log_density = log_density.detach().requires_grad_(True)
+        return total_stock_target, bell, log_density
+
 
 def simulate_episode(model, S0, sigma, N, Q, flag, batch_size=Batch):
 
@@ -55,8 +82,9 @@ def simulate_episode(model, S0, sigma, N, Q, flag, batch_size=Batch):
     actions = torch.zeros((N+1, batch_size), dtype=torch.float32)
     bell_signals = torch.zeros((N+1, batch_size), dtype=torch.float32)
     total_spent = torch.zeros((N+1, batch_size), dtype=torch.float32)
-    log_densities = torch.zeros((N+1, batch_size), dtype=torch.float32)
+    log_densities = torch.zeros((N+1, batch_size), dtype=torch.float32, requires_grad=True)
     episode_payoff =torch.full((batch_size,),float('nan'), dtype=torch.float32)
+    new_log_densities = torch.zeros_like(log_densities)
 
     if not flag: # lorsqu'on évalue le model
         np.random.seed(0)
@@ -75,31 +103,31 @@ def simulate_episode(model, S0, sigma, N, Q, flag, batch_size=Batch):
 
         log_density = None
 
-        with torch.no_grad():
-            if flag:
-                total_stock_target, bell, log_density = model.sample_action(state, Q, N)
+        if flag:
+            total_stock_target, bell, log_density = sample_action(model, state, Q, N)
+        else:
+            if isinstance(model, Net):
+                etat = model.forward(state)
+                total_stock_target = etat[0]
+                bell = etat[1]
             else:
-                if isinstance(model, Net):
-                    etat = model.forward(state)
-                    total_stock_target = etat[0]
-                    bell = etat[1]
-                else:
-                    etat = model.forward(state)
-                    total_stock_target = etat[0]
-                    bell = etat[1]
+                etat = model.forward(state)
+                total_stock_target = etat[0]
+                bell = etat[1]
 
 
         # MAJ des états
         q_n[t+1,:] = total_stock_target if t < N-1 else Q # * (Q - q_n[t, :]) if t < N - 1 else Q
         v_n = q_n[t+1, :] - q_n[t, :]
         total_spent[t+1, :] = total_spent[t, :] + v_n * S_n[t+1, :]
-        log_densities[t, :] = log_density if log_density is not None else 0
+        #log_densities[t, :] = log_density if log_density is not None else 0
+        new_log_densities[t, :] = log_density if log_density is not None else 0
         actions[t, :] = v_n
         bell_signals[t, :] = bell
-        condition = calculate_condition(bell_signals, q_n, t, N, Q, N) # Condition pour vérifier si le signal de cloche est activé, si t >= 19, et si q_n[t+1, :] est supérieur ou égal à Q
+        condition = calculate_condition(bell_signals, q_n, t, jour_cloche, Q, N) # Condition pour vérifier si le signal de cloche est activé, si t >= 22, et si q_n[t+1, :] est supérieur ou égal à Q
         
         if condition.any(): # Si la condition est remplie pour au moins un batch
-            bell_signals[t, :]=bell_signals[t, :]+1
+            bell_signals[t, condition]=bell_signals[t, condition]+1
             q_n[t+1:, condition] = q_n[t, condition]
             not_assigned = torch.isnan(episode_payoff)
             episode_payoff[not_assigned] = payoff(A_n[t, not_assigned], total_spent[t, not_assigned])
@@ -115,8 +143,8 @@ def simulate_episode(model, S0, sigma, N, Q, flag, batch_size=Batch):
         episode_payoff = payoff(A_n[N, :], total_spent[N, :])
     bell_signals[N,:]=1
     #episode_payoff = expected_payoff(A_n, total_spent, bell_signals, q_n, N)
+    log_densities = new_log_densities
     return S_n, A_n, q_n, total_spent, actions, log_densities, bell_signals, episode_payoff
-
 
 def train_model(model, simulate_episode, num_episodes, S0, sigma, N, Q, batch_size=Batch):
     optimizer = optim.Adam(model.parameters(), lr=0.01)
@@ -124,16 +152,20 @@ def train_model(model, simulate_episode, num_episodes, S0, sigma, N, Q, batch_si
         results = simulate_episode(model, S0, sigma, N, Q, flag=True, batch_size=batch_size)
         S_n, A_n, q_n, total_spent, actions, log_densities, bell_signals, episode_payoff = results
 
-        optimizer.zero_grad()
-        loss = torch.tensor(0.0, dtype=torch.float32, requires_grad=True)
-        loss = loss - torch.sum(log_densities)
-        loss *= torch.mean(episode_payoff)
-        print(loss)
-        if episode % 50 == 0:
-            print(f"Episode {episode}: Average Episode Payoff {torch.mean(episode_payoff)}, Loss {loss.item()}")
+        episode_payoff = torch.tensor(episode_payoff, dtype=torch.float32)
+        episode_payoff_normalized = (episode_payoff - torch.mean(episode_payoff)) / torch.std(episode_payoff)
 
+        loss = torch.tensor(0.0, dtype=torch.float32, requires_grad=True)
+        #loss = loss - torch.sum(log_densities)
+        #loss *= torch.mean(episode_payoff)
+        loss = -torch.mean(log_densities * episode_payoff_normalized)
+        if episode % 50 == 0:
+            print(f"Episode {episode}: Average Episode Payoff {torch.mean(episode_payoff_normalized)}, Loss {loss.item()}")
+
+        optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+
 """
 def evaluate_single_episode(model, S0, V0, mu, kappa, theta, sigma, N, Q,results, batch_size=2):
     S_n, A_n, q_n, total_spent, actions, log_densities, bell_signals, episode_payoff = results
@@ -167,17 +199,16 @@ def evaluate_policy(model, num_episodes, S0, sigma, N, Q, batch_size=Batch):
     for _ in range(num_episodes):
         results = simulate_episode(model, S0, sigma, N, Q, flag=True, batch_size=batch_size)
         S_n, A_n, q_n, total_spent, actions, log_densities, bell_signals, episode_payoff = results
-        final_day = (bell_signals > 1).nonzero(as_tuple=True)[0][0]
+        final_day = (bell_signals >= 1).nonzero(as_tuple=True)[0][0]
         total_spent_single = total_spent[final_day, 0]
         total_stocks = q_n[final_day, 0]
-        total_spent_list.append(total_spent_single)
-        total_stocks_list.append(total_stocks)
-        A_n_list.append(A_n[final_day, 0]) 
-        payoff_list.append(episode_payoff[0])
+        total_spent_list.append(total_spent_single.detach().cpu().numpy())
+        total_stocks_list.append(total_stocks.detach().cpu().numpy())
+        A_n_list.append(A_n[final_day, 0].detach().cpu().numpy())
+        payoff_list.append(episode_payoff[0].detach().cpu().numpy())
         final_day_list.append(final_day)
-        actions_list.append(actions[:, 0])
+        actions_list.append(actions[:, 0].detach().cpu().numpy())
         
- 
     avg_total_spent = np.mean(total_spent_list)
     avg_total_stocks = np.mean(total_stocks_list)
     avg_A_n = np.mean(A_n_list)
@@ -224,8 +255,8 @@ def plot_episode(S_n, A_n, q_n, cloche_n):
  
     ax1.set_xlabel('Jour')
     ax1.set_ylabel("S_n et A_n en euro (€)", color='black')
-    ax1.plot(S_n, label="S_n (Prix de l'action au jour n)", color="blue")
-    ax1.plot(A_n, label="A_n (Prix moyen des actions aux jours n)", color="green")
+    ax1.plot(S_n.detach().cpu().numpy(), label="S_n (Prix de l'action au jour n)", color="blue")
+    ax1.plot(A_n.detach().cpu().numpy(), label="A_n (Prix moyen des actions aux jours n)", color="green")
     ax1.tick_params(axis='y', labelcolor='black')
     verification=True
     for i, cloche_value in enumerate(cloche_n): 
@@ -235,7 +266,7 @@ def plot_episode(S_n, A_n, q_n, cloche_n):
             verification=False
     ax2 = ax1.twinx()  
     ax2.set_ylabel('q_n en valeur réelle', color='red')
-    ax2.plot(q_n, label="q_n (Quantité totale d'actions au jour n)", color="red", linestyle='-')
+    ax2.plot(q_n.detach().cpu().numpy(), label="q_n (Quantité totale d'actions au jour n)", color="red", linestyle='-')
     ax2.tick_params(axis='y', labelcolor='red')
  
     fig.tight_layout()
@@ -255,17 +286,9 @@ def get_user_choice(prompt, valid_choices):
         if choice in valid_choices:
             return choice
         print(f"Choix invalide. Veuillez entrer une des options suivantes : {', '.join(valid_choices)}")
- 
-# Initialisation du modèle et des paramètres
-# Paramètres du modèle
-S0 = 45
-sigma = 0.6
-N = 63  #days 
-Q = 20  #goal
 
 model_name = input("Quel modèle voulez-vous utiliser ? (par exemple : Net(0), StockNetwork(1), etc.) : ").strip()
 try:
-    # Importation dynamique de la classe de modèle
     if model_name == "1":
         model = StockNetwork()
     if model_name == "0":
@@ -279,11 +302,18 @@ except KeyError:
 choice = get_user_choice("Voulez-vous charger un modèle existant (c) ou entraîner un nouveau modèle (e) ? (c/e) : ", ['c', 'e'])
  
 if choice == 'c':
-    model_path = input("Entrez le chemin du modèle à charger : ").strip()
+    model_path = input("Entrez le chemin du modèle à charger (0) trained_model.pt (1) trained_model_.pt: ").strip()
     try:
-        model.load_model(model_path)
-        print(f"Modèle chargé depuis {model_path}")
- 
+        if model_path == "0":
+            model.load_model("trained_model.pt")
+            print(f"Modèle chargé à partir de trained_model.pt")
+        if model_path == "1":
+            model.load_model("trained_model_.pt")
+            print(f"Modèle chargé à partir de trained_model_.pt")
+        else: 
+            model.load_model(model_path)
+            print(f"Modèle chargé à partir de {model_path}")
+        
         continue_training = get_user_choice("Souhaitez-vous continuer l'entraînement du modèle ? (o/n) : ", ['o', 'n'])
         if continue_training == 'o':
             num_episodes = int(input("Entrez le nombre d'épisodes supplémentaires pour l'entraînement : "))
