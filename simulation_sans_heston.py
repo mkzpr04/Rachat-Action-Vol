@@ -85,6 +85,7 @@ def simulate_episode(model, S0, sigma, N, Q, flag, batch_size=Batch):
     log_densities = torch.zeros((N+1, batch_size), dtype=torch.float32, requires_grad=True)
     episode_payoff =torch.full((batch_size,),float('nan'), dtype=torch.float32)
     new_log_densities = torch.zeros_like(log_densities)
+    payoff_calculated = torch.zeros(batch_size, dtype=torch.bool)
 
     if not flag: # lorsqu'on évalue le model
         np.random.seed(0)
@@ -129,8 +130,9 @@ def simulate_episode(model, S0, sigma, N, Q, flag, batch_size=Batch):
         if condition.any(): # Si la condition est remplie pour au moins un batch
             bell_signals[t, condition]=bell_signals[t, condition]+1
             q_n[t+1:, condition] = q_n[t, condition]
-            not_assigned = torch.isnan(episode_payoff)
-            episode_payoff[not_assigned] = payoff(A_n[t, not_assigned], total_spent[t, not_assigned])
+            new_payoff_condition = condition & ~payoff_calculated 
+            episode_payoff[new_payoff_condition] = payoff(A_n[t, new_payoff_condition], total_spent[t, new_payoff_condition])
+            payoff_calculated[new_payoff_condition] = True
             #A_n[N, condition] = torch.mean(S_n[1:N + 1, :], axis=0)[condition]
         
     condition = q_n[N, :] < Q
@@ -140,7 +142,7 @@ def simulate_episode(model, S0, sigma, N, Q, flag, batch_size=Batch):
         total_spent[N, condition] += final_adjustment * S_n[N, condition]
         actions[-1, condition] += final_adjustment
         q_n[N, condition] = Q
-        episode_payoff = payoff(A_n[N, :], total_spent[N, :])
+        episode_payoff[condition] = payoff(A_n[N, condition], total_spent[N, condition])
     bell_signals[N,:]=1
     #episode_payoff = expected_payoff(A_n, total_spent, bell_signals, q_n, N)
     log_densities = new_log_densities
