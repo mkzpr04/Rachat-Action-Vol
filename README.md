@@ -151,9 +151,3 @@ array plutôt que les liste car les tailles sont fixes # done
  - E(payoff) devient formule : payoff_1*cloche_1 + (1-cloche_1)*(payoff_2*cloche_2 +  (1-cloche_2)* (...))
  - connecter le nn pour le tester
 
-#
-Log likelihood à revoir ; et gradient policy a revoir
-Calcu
-Hypothèse d'indépendance !!
-+
-gradient policy correcteent implémenter

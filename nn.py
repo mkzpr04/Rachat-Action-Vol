@@ -1,9 +1,9 @@
 import torch
 import torch.nn as nn
 import numpy as np
+from tqdm import tqdm
+import torch.optim as optim
 
-
-enable_cuda = True
 n_neurons_per_layer = 512
 n_layers = 5
 
@@ -58,13 +58,13 @@ class Net(nn.Module):
                 q_previous / self.Q - 0.5,
             ]
         ).T
+
     def load_model(self, path, device="cpu"):
         self.load_state_dict(torch.load(path, map_location=device))
         self.eval()
     
     def save_model(self, path):
         torch.save(self.state_dict(), path)
-
 
 """
 model = Net()
@@ -74,18 +74,12 @@ model.load_model("trained_model.pt")
 
 #weights_after = {name: param.clone() for name, param in model.named_parameters()}
 
-state1 = model.normalize(
-    n_plus_one=torch.tensor(30, dtype=torch.float32),
-    S_tensor_step=torch.tensor(47, dtype=torch.float32),
-    A_tensor_step=torch.tensor(46, dtype=torch.float32),
-    q_previous=torch.tensor(11, dtype=torch.float32)
-)
-actions = model.forward(state1)
+
+print(model.fc1.weight)
 
 state = torch.tensor(((23.0), (41.0),( 43.0), (19.0)), dtype=torch.float32)
-print(state, "avant normalize")
+print(state)
 state=model.normalize(23.0, torch.tensor(41.0),torch.tensor( 43.0), torch.tensor(19.0))
-print("après normalize :", state)
 actions = model.forward(state)
 print(actions)
     
